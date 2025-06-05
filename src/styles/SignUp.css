@@ -1,0 +1,21 @@
+/* Make entire layout take full height */
+html, body, .auth-container, .row {
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Full-size image */
+.img-cover {
+  display: block;
+}
+
+/* Sign-up form styling */
+.auth-box {
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 2rem;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+}
