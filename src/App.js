@@ -7,7 +7,6 @@ import ForgotPassword from "./components/ForgotPassword";
 import { auth } from "./firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import BlockForm from "./components/BlockForm";
-import AdminPanel from "./components/AdminPanel";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -38,8 +37,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/admin-panel" element={<AdminPanel />} />
-
         <Route path="*" element={<Navigate to="/" />} />
 
       </Routes>
