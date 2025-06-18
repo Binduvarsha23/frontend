@@ -14,7 +14,7 @@ import {
 } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import FormComponent from "./FormComponent.jsx";
+import FormComponent from "../FormComponent.jsx";
 
 export default function Dashboard() {
   const [blocks, setBlocks] = useState([]);
