@@ -4,7 +4,7 @@ import { auth } from '../firebase';
 import FieldConfigEditor from './FieldConfigEditor'; // Adjust if path differs
 
 const BASE_URL = 'https://backend-pbmi.onrender.com';
-const ADMIN_EMAIL = 'binduvarshasunkara@gmail.com';
+const ADMIN_EMAIL = 'socioclubsc@gmail.com';
 
 const AdminPanel = () => {
   const [user, setUser] = useState(null);
