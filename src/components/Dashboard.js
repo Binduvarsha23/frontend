@@ -24,6 +24,7 @@ import {
 } from "../api/blockApi";
 import { useInView } from "react-intersection-observer";
 import { get, set } from "idb-keyval";
+import "./Dashboard.css";
 
 const Dashboard = () => {
   const [blocks, setBlocks] = useState([]);
@@ -135,12 +136,6 @@ const Dashboard = () => {
     });
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    await set("blocks", null);
-    await set("blockUploads", null);
-    navigate("/");
-  };
 
   const handleCreateBlock = async () => {
     if (!newBlockName.trim()) return toast.warn("Block name is required");
@@ -156,6 +151,21 @@ const Dashboard = () => {
       toast.error("Failed to create block");
     }
   };
+
+  const formatBlockTitle = (title) => {
+  if (!title) return "";
+  const words = title.split(" ");
+  if (words.length >= 2) {
+    return (
+      <>
+        {words.slice(0, -1).join(" ")}<br />
+        {words[words.length - 1]}
+      </>
+    );
+  }
+  return title;
+};
+
 
   const handleDeleteBlock = async (blockId) => {
     if (!window.confirm("Are you sure you want to delete this block?")) return;
@@ -183,13 +193,21 @@ const Dashboard = () => {
     <Container className="py-4">
       <ToastContainer />
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>📁 Your Document Blocks</h2>
+        <h2 style={{
+  fontSize: "1.75rem",
+  fontWeight: "600",
+  fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
+  color: "#343a40",
+  letterSpacing: "0.5px",
+  marginBottom: "0"
+}}>
+  Your Document Blocks
+</h2>
+<small className="text-muted">Manage and access your digital documents</small>
+
         <div>
           <Button onClick={() => setShowCreateModal(true)} className="me-2">
             + Create Custom Block
-          </Button>
-          <Button variant="danger" onClick={handleLogout}>
-            Logout
           </Button>
         </div>
       </div>
@@ -200,34 +218,47 @@ const Dashboard = () => {
         <>
           <Row>
             {[...blocks, ...customBlocks].slice(0, visibleBlocks).map((block) => (
-              <Col key={block._id} xs={12} md={4} className="mb-3">
+              <Col key={block._id} xs={6} sm={4} md={3} lg={2} className="mb-3">
                 <Card
-                  className="h-100 shadow-sm"
-                  style={{ cursor: "pointer" }}
+                  className="block-card text-center"
                   onClick={() => handleBlockClick(block)}
+                  style={{ height: "140px", fontSize: "0.9rem", cursor: "pointer" }}
                 >
-                  <Card.Body className="d-flex align-items-center justify-content-between">
-                    <div className="d-flex align-items-center">
-                      {block.iconUrl && !block.userId && (
-                        <img
-                          src={block.iconUrl}
-                          alt={block.name}
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            objectFit: "contain",
-                            marginRight: "15px",
-                          }}
-                        />
-                      )}
-                      <Card.Title className="mb-0">
-                        {block.name || block.blockName}
-                      </Card.Title>
-                    </div>
+                  {!block.userId && block.iconUrl && (
+                    <Card.Img
+                      variant="top"
+                      src={block.iconUrl}
+                      style={{
+                        height: "60px",
+                        width: "60px",
+                        objectFit: "contain",
+                        margin: "10px auto 0",
+                      }}
+                    />
+                  )}
+                  {block.userId && (
+                    <div
+                      style={{
+                        height: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    />
+                  )}
+                  <Card.Body className="p-2">
+<Card.Title
+  className="mb-0"
+  style={{ fontSize: "1rem", lineHeight: 1.2, wordBreak: "break-word" }}
+>
+  {formatBlockTitle(block.name || block.blockName)}
+</Card.Title>
+
                     {block.userId && (
                       <Button
                         variant="outline-danger"
                         size="sm"
+                        className="mt-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteBlock(block._id);
@@ -241,55 +272,82 @@ const Dashboard = () => {
               </Col>
             ))}
           </Row>
+<h4 className="mt-5">Recent Uploads</h4>
+<Row>
+  {Object.entries(blockUploads).flatMap(([blockId, forms]) =>
+    forms.map((form, index) => {
+      // Map icons based on block name or document type
+      let iconClass = "fa-file-alt"; // Default icon
+      if (form.blockName.toLowerCase().includes("pan")) iconClass = "fa-id-card";
+      else if (form.blockName.toLowerCase().includes("aadhaar")) iconClass = "fa-address-card";
+      else if (form.blockName.toLowerCase().includes("mutual fund")) iconClass = "fa-piggy-bank";
+      else if (form.blockName.toLowerCase().includes("insurance")) iconClass = "fa-umbrella";
 
-          <h4 className="mt-5">Recent Uploads</h4>
-          {Object.entries(blockUploads).flatMap(([blockId, forms]) =>
-            forms.map((form, index) => (
-              <Card key={`${blockId}-${index}`} className="mb-3 shadow-sm">
-                <Card.Body>
-                  <Card.Title>{form.blockName}</Card.Title>
-                  <p className="text-muted">
-                    Submitted at: {new Date(form.createdAt).toLocaleString()}
-                  </p>
-                  {form.previewImage && (
-                    <img
-                      src={form.previewImage}
-                      alt="preview"
-                      style={{
-                        maxWidth: "100%",
-                        maxHeight: "140px",
-                        borderRadius: 6,
-                        marginBottom: 8,
-                        cursor: "pointer",
-                      }}
-                      onClick={() => setModalImage(form.previewImage)}
-                    />
-                  )}
-                  {form.entries.map(([field, value]) => (
-                    <div key={field} style={{ fontSize: "0.9rem" }}>
-                      <strong>{field}:</strong>{" "}
-                      {typeof value === "string" && value.length > 30
-                        ? value.slice(0, 30) + "..."
-                        : value}
+      return (
+        <Col key={`${blockId}-${index}`} xs={12} sm={6} md={4} lg={3} className="mb-4">
+          <Card className="h-100 shadow-sm recent-upload-card" style={{ borderRadius: "10px", height: "200px" }}>
+            <Card.Body className="d-flex flex-column justify-content-between" style={{ padding: "15px" }}>
+              <div style={{ overflowY: "auto", maxHeight: "145px" }}>
+                <div className="d-flex align-items-center mb-2">
+                  <i
+                    className={`fas ${iconClass}`}
+                    style={{ fontSize: "1.5rem", color: "#007bff", paddingRight: "10px" }}
+                  ></i>
+                  <Card.Title className="text-truncate mb-0" style={{ fontSize: "1.1rem", maxWidth: "80%" }}>
+                    {form.blockName}
+                  </Card.Title>
+                </div>
+                <p className="text-muted mb-2" style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {new Date(form.createdAt).toLocaleString()}
+                </p>
+                {form.previewImage && (
+                  <img
+                    src={form.previewImage}
+                    alt="preview"
+                    style={{
+                      width: "100%",
+                      height: "100px",
+                      objectFit: "cover",
+                      borderRadius: "6px",
+                      marginBottom: "10px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setModalImage(form.previewImage)}
+                  />
+                )}
+                {form.entries.map(([field, value], i) => {
+                  const decryptedValue = value?.encrypted ? decryptData(value.encrypted) : value;
+                  const valueStr = typeof decryptedValue === "string" ? decryptedValue : String(decryptedValue);
+                  return (
+                    <div key={i} className="d-flex justify-content-between" style={{ fontSize: "0.85rem", marginBottom: "5px", wordBreak: "break-word" }}>
+                      <strong style={{ marginRight: "10px", minWidth: "40%", whiteSpace: "nowrap" }}>{field}:</strong>
+                      <span style={{ textAlign: "right", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {valueStr.length > 30 ? valueStr.slice(0, 30) + "..." : valueStr}
+                      </span>
                     </div>
-                  ))}
-                  <Button
-                    variant="link"
-                    className="p-0 mt-2"
-                    onClick={() =>
-                      setModalData({
-                        blockName: form.blockName,
-                        entries: form.fullEntries,
-                        createdAt: form.createdAt,
-                      })
-                    }
-                  >
-                    View More
-                  </Button>
-                </Card.Body>
-              </Card>
-            ))
-          )}
+                  );
+                })}
+              </div>
+              <Button
+                variant="link"
+                className="p-0 mt-2 align-self-start"
+                onClick={() =>
+                  setModalData({
+                    blockName: form.blockName,
+                    entries: form.fullEntries,
+                    createdAt: form.createdAt,
+                  })
+                }
+              >
+                <i className="fas fa-eye" style={{ color: "#000000", fontSize: "1.2rem" }}></i>
+              </Button>
+            </Card.Body>
+          </Card>
+        </Col>
+      );
+    })
+  )}
+</Row>     
           <div ref={bottomRef}></div>
         </>
       )}
