@@ -38,7 +38,7 @@ export default function SignIn() {
         return;
       }
       toast.success("Signed in successfully!");
-      navigate("/dashboard");
+      navigate("/app");
     } catch (err) {
       toast.error(err.message || "Sign in failed.");
     }
@@ -53,7 +53,7 @@ export default function SignIn() {
       .then((result) => {
         if (result?.user) {
           toast.success("Signed in with provider successfully!");
-          navigate("/dashboard");
+          navigate("/app");
         }
       })
       .catch((error) => {
