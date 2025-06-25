@@ -203,7 +203,7 @@ const Dashboard = () => {
 }}>
   Your Document Blocks
 </h2>
-    </br>
+    <br/>
 <small className="text-muted">Manage and access your digital documents</small>
 
         <div>
