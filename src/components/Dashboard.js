@@ -203,9 +203,9 @@ const Dashboard = () => {
 }}>
   Your Document Blocks
 </h2>
-    <br/>
-<small className="text-muted">Manage and access your digital documents</small>
-
+    <div className="mt-2">
+  <small className="text-muted">Manage and access your digital documents</small>
+</div>
         <div>
           <Button onClick={() => setShowCreateModal(true)} className="me-2">
             + Create Custom Block
