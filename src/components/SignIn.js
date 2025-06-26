@@ -85,7 +85,7 @@ export default function SignIn() {
     required
     className="form-control bg-transparent text-white border-0 border-bottom"
   />
-  <small className="text-warning mt-1 d-block" style={{ fontSize: "12px" }}>
+  <small className="mt-1 d-block" style={{ fontSize: "12px" }}>
     If you used <strong>Continue with Google</strong> to sign up, please use it again to sign in,
     or <Link to="/forgot-password" className="text-decoration-underline text-light">reset your password</Link>.
   </small>
