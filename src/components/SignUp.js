@@ -1,16 +1,11 @@
 // SignUp.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
 } from "firebase/auth";
-import {
-  auth,
-  googleProvider,
-  facebookProvider,
-} from "../firebase";
+import { auth, googleProvider, facebookProvider } from "../firebase";
 import { useNavigate, Link } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -52,30 +47,22 @@ export default function SignUp() {
     }
   };
 
-  const handleRedirectSignup = (provider) => {
-    signInWithRedirect(auth, provider);
+  const handleSocialSignup = async (provider) => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      toast.success("Signed in successfully!");
+      setTimeout(() => navigate("/app"), 2000);
+    } catch (error) {
+      toast.error("Social sign-up failed.");
+      console.error(error);
+    }
   };
-
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          toast.success("Signed in successfully!");
-          setTimeout(() => navigate("/dashboard"), 2000);
-        }
-      })
-      .catch((error) => {
-        if (error) {
-          toast.error("Social sign-in failed.");
-        }
-      });
-  }, [navigate]);
 
   return (
     <div
       className="d-flex justify-content-center align-items-center vh-100"
       style={{
-         background: `url(${bgImage})`,
+        background: `url(${bgImage})`,
         backgroundRepeat: "no-repeat",
         backgroundPosition: "center center",
         backgroundAttachment: "fixed",
@@ -114,14 +101,14 @@ export default function SignUp() {
         </form>
 
         <button
-          onClick={() => handleRedirectSignup(googleProvider)}
+          onClick={() => handleSocialSignup(googleProvider)}
           className="btn btn-danger w-100 fw-semibold rounded-pill mt-3 d-flex align-items-center justify-content-center gap-2"
         >
           <FaGoogle /> Continue with Google
         </button>
 
         <button
-          onClick={() => handleRedirectSignup(facebookProvider)}
+          onClick={() => handleSocialSignup(facebookProvider)}
           className="btn btn-primary w-100 fw-semibold rounded-pill mt-2 d-flex align-items-center justify-content-center gap-2"
         >
           <FaFacebook /> Continue with Facebook
@@ -130,8 +117,8 @@ export default function SignUp() {
         <div className="mt-4 text-center" style={{ fontSize: "14px" }}>
           Already have an account? <Link to="/" className="text-white fw-semibold">Sign In</Link>
         </div>
-        
-      </div><ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+      </div>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 }
