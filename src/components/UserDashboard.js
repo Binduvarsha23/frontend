@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import GoogleDriveSync from "./GoogleDriveSync";
 import { Button } from "react-bootstrap";
-import "./UserDashboard.css";
 
 const UserDashboard = () => {
   const [syncedFiles, setSyncedFiles] = useState(null);
