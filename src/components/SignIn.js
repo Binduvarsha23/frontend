@@ -1,22 +1,16 @@
 // SignIn.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
 } from "firebase/auth";
-import {
-  auth,
-  googleProvider,
-  facebookProvider,
-} from "../firebase";
+import { auth, googleProvider, facebookProvider } from "../firebase";
 import { useNavigate, Link } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { FaGoogle, FaFacebook } from "react-icons/fa";
 import "bootstrap/dist/css/bootstrap.min.css";
 import bgImage from "../assets/signIn.webp";
-
 
 export default function SignIn() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -44,24 +38,16 @@ export default function SignIn() {
     }
   };
 
-  const handleRedirectLogin = (provider) => {
-    signInWithRedirect(auth, provider);
+  const handleSocialLogin = async (provider) => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      toast.success("Signed in successfully!");
+      navigate("/app");
+    } catch (error) {
+      toast.error("Social sign-in failed.");
+      console.error(error);
+    }
   };
-
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          toast.success("Signed in with provider successfully!");
-          navigate("/app");
-        }
-      })
-      .catch((error) => {
-        if (error) {
-          toast.error(error.message || "Provider sign-in failed.");
-        }
-      });
-  }, [navigate]);
 
   return (
     <div
@@ -110,14 +96,14 @@ export default function SignIn() {
         </form>
 
         <button
-          onClick={() => handleRedirectLogin(googleProvider)}
+          onClick={() => handleSocialLogin(googleProvider)}
           className="btn btn-danger w-100 fw-semibold rounded-pill mt-3 d-flex align-items-center justify-content-center gap-2"
         >
           <FaGoogle /> Continue with Google
         </button>
 
         <button
-          onClick={() => handleRedirectLogin(facebookProvider)}
+          onClick={() => handleSocialLogin(facebookProvider)}
           className="btn btn-primary w-100 fw-semibold rounded-pill mt-2 d-flex align-items-center justify-content-center gap-2"
         >
           <FaFacebook /> Continue with Facebook
@@ -126,8 +112,8 @@ export default function SignIn() {
         <div className="mt-4 text-center" style={{ fontSize: "14px" }}>
           Don’t have an account? <Link to="/signup" className="text-white fw-semibold">Register</Link>
         </div>
-        </div>
-        <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+      </div>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </div>
   );
 }
