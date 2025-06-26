@@ -76,16 +76,21 @@ export default function SignIn() {
             />
           </div>
           <div className="mb-3 text-start">
-            <label htmlFor="password" className="form-label fw-semibold">Password</label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              className="form-control bg-transparent text-white border-0 border-bottom"
-            />
-          </div>
+  <label htmlFor="password" className="form-label fw-semibold">Password</label>
+  <input
+    type="password"
+    name="password"
+    value={form.password}
+    onChange={handleChange}
+    required
+    className="form-control bg-transparent text-white border-0 border-bottom"
+  />
+  <small className="text-warning mt-1 d-block" style={{ fontSize: "12px" }}>
+    If you used <strong>Continue with Google</strong> to sign up, please use it again to sign in,
+    or <Link to="/forgot-password" className="text-decoration-underline text-light">reset your password</Link>.
+  </small>
+</div>
+
           <div className="d-flex justify-content-between mb-3" style={{ fontSize: "12px" }}>
             <label><input type="checkbox" className="me-2" />Remember Me</label>
             <Link to="/forgot-password" className="text-white">Forget Password</Link>
