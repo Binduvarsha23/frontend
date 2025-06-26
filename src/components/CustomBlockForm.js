@@ -5,6 +5,7 @@ import { Form, Button, Container, Row, Col, Card, Spinner, Modal } from "react-b
 import { ToastContainer, toast } from "react-toastify";
 import { auth } from "../firebase";
 import "react-toastify/dist/ReactToastify.css";
+import { encryptData, decryptData } from "../components/aesUtils"; // 🔐 Make sure path is correct
 
 const fieldTypes = ["text", "number", "email", "date", "file"];
 
@@ -48,9 +49,7 @@ const CustomBlockForm = () => {
   const fetchSavedForms = async () => {
     setLoadingSavedForms(true);
     try {
-      const res = await fetch(
-        `https://backend-pbmi.onrender.com/api/saved-forms/${blockId}?userId=${userId}`
-      );
+      const res = await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${blockId}?userId=${userId}`);
       const data = await res.json();
       setSavedForms(data);
     } catch (err) {
@@ -76,16 +75,17 @@ const CustomBlockForm = () => {
     }
 
     try {
-      const dataToSend = {};
-
+      const rawData = {};
       for (const { name, type } of fields) {
         const value = formValues[name];
         if (type === "file" && value instanceof File) {
-          dataToSend[name] = await toBase64(value);
+          rawData[name] = await toBase64(value);
         } else {
-          dataToSend[name] = value;
+          rawData[name] = value;
         }
       }
+
+      const encryptedData = encryptData(rawData); // 🔐 encryption applied
 
       if (editingFormId) {
         await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${editingFormId}`, {
@@ -97,8 +97,10 @@ const CustomBlockForm = () => {
         userId,
         blockId,
         blockName: state?.blockName || "CustomBlock",
-        data: dataToSend,
+        data: { encrypted: encryptedData },
       };
+
+      console.log("🔐 Encrypted payload to MongoDB:", payload);
 
       const res = await fetch("https://backend-pbmi.onrender.com/api/save-form", {
         method: "POST",
@@ -121,8 +123,14 @@ const CustomBlockForm = () => {
   };
 
   const handleEdit = (form) => {
-    const entries = Object.entries(form.data);
-    setFields(entries.map(([name, value]) => ({ name, type: value.startsWith("data:") ? "file" : "text" })));
+    const decrypted = form.data?.encrypted ? decryptData(form.data.encrypted) : form.data;
+    const entries = Object.entries(decrypted);
+
+    setFields(entries.map(([name, value]) => ({
+      name,
+      type: typeof value === "string" && value.startsWith("data:") ? "file" : "text"
+    })));
+
     const newValues = {};
     for (const [key, val] of entries) {
       newValues[key] = val;
@@ -184,7 +192,7 @@ const CustomBlockForm = () => {
                     <Form.Control
                       type="file"
                       accept="image/*,application/pdf"
-                      placeholder="Upload one image or PDF"
+                      placeholder="Upload file"
                       onChange={(e) => handleInputChange(field.name, e.target.files[0])}
                     />
                   ) : (
@@ -202,12 +210,8 @@ const CustomBlockForm = () => {
         ))}
 
         <div className="d-flex gap-2 mb-3">
-          <Button variant="info" onClick={addField}>
-            + Add Field
-          </Button>
-          <Button type="submit" variant="primary">
-            {editingFormId ? "Update" : "Submit"}
-          </Button>
+          <Button variant="info" onClick={addField}>+ Add Field</Button>
+          <Button type="submit" variant="primary">{editingFormId ? "Update" : "Submit"}</Button>
         </div>
       </Form>
 
@@ -218,41 +222,41 @@ const CustomBlockForm = () => {
       ) : savedForms.length === 0 ? (
         <p>No saved entries found.</p>
       ) : (
-        savedForms.map((form) => (
-          <Card key={form._id} className="mb-3">
-            <Card.Body>
-              <h5>{form.blockName}</h5>
-              <p className="text-muted">Submitted on: {new Date(form.createdAt).toLocaleString()}</p>
-              {Object.entries(form.data).map(([key, value]) => (
-                <div key={key}>
-                  <strong>{key}:</strong>{" "}
-                  {typeof value === "string" && value.startsWith("data:image") ? (
-                    <img
-                      src={value}
-                      alt={key}
-                      style={{ maxWidth: "100px", maxHeight: "100px", cursor: "pointer" }}
-                      onClick={() => setModalImage(value)}
-                    />
-                  ) : value?.startsWith("data:application/pdf") ? (
-                    <a href={value} target="_blank" rel="noopener noreferrer">
-                      View PDF
-                    </a>
-                  ) : (
-                    value?.toString()
-                  )}
+        savedForms.map((form) => {
+          const decrypted = form.data?.encrypted ? decryptData(form.data.encrypted) : form.data;
+
+          return (
+            <Card key={form._id} className="mb-3">
+              <Card.Body>
+                <h5>{form.blockName}</h5>
+                <p className="text-muted">Submitted on: {new Date(form.createdAt).toLocaleString()}</p>
+                {Object.entries(decrypted).map(([key, value]) => (
+                  <div key={key}>
+                    <strong>{key}:</strong>{" "}
+                    {typeof value === "string" && value.startsWith("data:image") ? (
+                      <img
+                        src={value}
+                        alt={key}
+                        style={{ maxWidth: "100px", maxHeight: "100px", cursor: "pointer" }}
+                        onClick={() => setModalImage(value)}
+                      />
+                    ) : value?.startsWith("data:application/pdf") ? (
+                      <a href={value} target="_blank" rel="noopener noreferrer">
+                        View PDF
+                      </a>
+                    ) : (
+                      value?.toString()
+                    )}
+                  </div>
+                ))}
+                <div className="mt-3 d-flex gap-2">
+                  <Button variant="warning" size="sm" onClick={() => handleEdit(form)}>Edit</Button>
+                  <Button variant="danger" size="sm" onClick={() => handleDelete(form._id)}>Delete</Button>
                 </div>
-              ))}
-              <div className="mt-3 d-flex gap-2">
-                <Button variant="warning" size="sm" onClick={() => handleEdit(form)}>
-                  Edit
-                </Button>
-                <Button variant="danger" size="sm" onClick={() => handleDelete(form._id)}>
-                  Delete
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
-        ))
+              </Card.Body>
+            </Card>
+          );
+        })
       )}
 
       <Modal show={!!modalImage} onHide={() => setModalImage(null)} centered size="lg">
@@ -269,9 +273,7 @@ const CustomBlockForm = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setModalImage(null)}>
-            Close
-          </Button>
+          <Button variant="secondary" onClick={() => setModalImage(null)}>Close</Button>
           <Button variant="primary" onClick={() => {
             const a = document.createElement("a");
             a.href = modalImage;
