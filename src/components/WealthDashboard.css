@@ -1,0 +1,601 @@
+/* General Layout and Background */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6; /* Improved readability */
+    color: #333;
+}
+
+.wealth-dashboard-container {
+    max-width: 1000px;
+    margin: 20px auto; 
+    padding: 0 15px; 
+}
+
+/* Section Titles */
+.section-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    text-align: center; 
+}
+
+.section-title .title-icon {
+    font-size: 2.5rem;
+    color: #007bff;
+}
+
+/* Loading Spinner */
+.loading-spinner, .error-message {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh; /* Takes most of the viewport height */
+    font-size: 1.2rem;
+    color: #555;
+}
+
+.loading-spinner .spin {
+    animation: spin 1.5s linear infinite;
+    color: #007bff;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-message {
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 500px;
+    margin: 50px auto;
+}
+.error-message .btn {
+    padding: 8px 20px;
+    font-size: 1rem;
+}
+
+/* Summary Cards */
+.summary-cards .summary-card {
+    padding: 20px;
+    border-radius: 12px;
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    height: 100%; /* Ensures cards in a row have equal height */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.summary-cards .summary-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.summary-cards .summary-card h6 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 5px;
+    opacity: 0.9;
+}
+
+.summary-cards .summary-card p {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+/* Background Colors for Summary Cards */
+.summary-cards .bg-info { background-color: #0dcaf0 !important; }
+.summary-cards .bg-success { background-color: #198754 !important; }
+.summary-cards .bg-warning { background-color: #ffc107 !important; color: #333 !important;}
+.summary-cards .bg-secondary { background-color: #6c757d !important; }
+
+
+/* Tab Buttons */
+.tab-buttons {
+    margin-bottom: 30px;
+}
+
+.tab-buttons .btn {
+    font-weight: 600;
+    padding: 10px 25px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    min-width: 150px;  
+    margin-left: 10px;
+}
+
+.tab-buttons .btn-dark {
+    background-color: #134b84;
+    border-color: #343a40;
+}
+
+.tab-buttons .btn-outline-dark {
+    border-color: #134b84;
+    color: #343a40;
+}
+
+.tab-buttons .btn-outline-dark:hover {
+    background-color: #134b84;
+    color: #fff;
+}
+
+/* Form Card */
+.form-card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    height: 100%; /* Make form card fill height */
+}
+
+.form-card-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 25px;
+}
+
+.form-card .form-label {
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 5px;
+    font-size: 0.95rem; /* Slightly smaller for labels */
+}
+
+.form-card .form-control,
+.form-card .form-select {
+    border-radius: 8px;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    box-shadow: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-card .form-control:focus,
+.form-card .form-select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none; /* Remove default outline */
+}
+
+.form-card .btn-primary,
+.form-card .btn-outline-secondary {
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    min-height: 44px; /* Ensure minimum tap target size for buttons */
+}
+
+.form-card .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: #fff;
+}
+
+.form-card .btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.form-card .btn-outline-secondary {
+    border-color: #6c757d;
+    color: #6c757d;
+}
+.form-card .btn-outline-secondary:hover {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+
+/* Section Cards (Assets and Investments display) */
+.section-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    min-height: 100%; /* Ensure content area expands as needed */
+}
+
+.section-card .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.section-card .section-header i,
+.section-card .section-header svg {
+    font-size: 24px;
+    color: #333;
+}
+
+.section-card .section-header h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.section-card .section-description {
+    font-size: 15px;
+    color: #666;
+    margin-top: 0;
+    margin-bottom: 25px;
+}
+
+.empty-state-message {
+    padding: 20px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    color: #888;
+    background-color: #f8f8f8;
+    margin-top: 25px !important;
+}
+
+
+/* Asset Category (Individual sections like Real Estate, Vehicle) */
+.asset-category {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #fdfdfd;
+}
+
+.asset-category:last-child {
+    margin-bottom: 0;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.category-header i,
+.category-header svg {
+    font-size: 20px;
+    color: #555;
+}
+
+.category-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.item-count {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.item-count-real-estate { background-color: #e6f7ff; color: #007bff; }
+.item-count-vehicle { background-color: #e6ffe6; color: #28a745; }
+.item-count-luxury-items { background-color: #f7e6ff; color: #9c27b0; }
+.item-count-other { background-color: #f8f9fa; color: #6c757d; }
+
+
+/* Individual Asset Item */
+.asset-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px 0;
+    border-top: 1px solid #eee;
+    cursor: default; /* Change cursor for non-clickable items */
+}
+
+.asset-item:first-of-type {
+    border-top: none;
+}
+
+.asset-details h4 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.asset-details p {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 5px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.asset-details p i,
+.asset-details p svg {
+    font-size: 13px;
+    color: #888;
+}
+
+.asset-location .icon-small {
+    font-size: 11px;
+    vertical-align: middle;
+}
+
+.icon-small-link {
+    color: #007bff; /* Link color for small icon */
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+.icon-small-link:hover {
+    color: #0056b3;
+}
+
+
+.asset-value-wrapper {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.asset-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    white-space: nowrap;
+}
+
+/* Investment Item */
+.investment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #fdfdfd;
+    transition: box-shadow 0.2s ease;
+    cursor: default;
+}
+.investment-item:hover {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); /* Subtle hover for items */
+}
+
+
+.investment-item:last-child {
+    margin-bottom: 0;
+}
+
+.investment-details {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.investment-icon-wrapper {
+    background-color: #f0f2f5;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.investment-icon-wrapper i,
+.investment-icon-wrapper svg {
+    font-size: 22px;
+}
+
+/* Investment Icon Colors */
+.investment-icon-green { color: #28a745; }
+.investment-icon-blue { color: #007bff; }
+.investment-icon-orange { color: #fd7e14; }
+.investment-icon-red { color: #dc3545; }
+.investment-icon-grey { color: #6c757d; }
+
+
+.investment-details h4 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.investment-details p {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 5px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.investment-details p i,
+.investment-details p svg {
+    font-size: 13px;
+    color: #888;
+}
+
+.investment-value-details {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
+
+.investment-current-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    white-space: nowrap;
+}
+
+.investment-invested {
+    font-size: 13px;
+    color: #888;
+    margin: 0;
+}
+
+.investment-return {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.investment-return-positive {
+    color: #28a745;
+}
+
+.investment-return-negative {
+    color: #dc3545;
+}
+
+/* Action Buttons for Edit/Delete */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.action-btn {
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    min-width: 38px; /* Ensure good tap target */
+    min-height: 38px; /* Ensure good tap target */
+    display: inline-flex; /* Use flex to center icon */
+    justify-content: center;
+    align-items: center;
+}
+.action-btn svg {
+    font-size: 1rem;
+}
+
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+    .section-title {
+        font-size: 1.8rem;
+    }
+    .section-title .title-icon {
+        font-size: 2rem;
+    }
+    .section-card {
+        padding: 20px;
+    }
+    .form-card {
+        padding: 20px;
+    }
+    .asset-category {
+        padding: 15px;
+    }
+    .investment-item {
+        padding: 15px;
+    }
+    .asset-value, .investment-current-value {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 768px) {
+    .section-title {
+        font-size: 1.6rem;
+        margin-bottom: 30px;
+    }
+    .section-title .title-icon {
+        font-size: 1.8rem;
+    }
+    .summary-cards .summary-card p {
+        font-size: 1.2rem;
+    }
+    .summary-cards .summary-card h6 {
+        font-size: 0.9rem;
+    }
+
+    .tab-buttons {
+        flex-direction: column; /* Stack buttons vertically */
+        gap: 10px;
+    }
+    .tab-buttons .btn {
+        width: 100%;
+        max-width: 250px; /* Limit button width on small screens for better aesthetics */
+        margin: 0 auto; /* Center stacked buttons */
+    }
+
+    /* Stack asset and investment items */
+    .asset-item,
+    .investment-item {
+        flex-direction: column;
+        align-items: flex-start; /* Align content to the left when stacked */
+        gap: 10px;
+        text-align: left; /* Ensure text aligns left */
+    }
+
+    .asset-value-wrapper,
+    .investment-value-details {
+        width: 100%; /* Make value section take full width */
+        align-items: flex-start; /* Align value content to the left */
+    }
+
+    .action-buttons {
+        margin-top: 5px;
+        justify-content: flex-start; /* Align action buttons to the left */
+    }
+
+    .form-card .d-flex {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .wealth-dashboard-container {
+        padding: 10px;
+    }
+    .section-card, .form-card {
+        padding: 15px;
+    }
+    .section-header h2 {
+        font-size: 20px;
+    }
+    .section-description {
+        font-size: 13px;
+    }
+    .asset-item, .investment-item {
+        padding: 10px 0;
+    }
+    .asset-details h4, .investment-details h4 {
+        font-size: 16px;
+    }
+    .asset-details p, .investment-details p {
+        font-size: 13px;
+    }
+    .asset-value, .investment-current-value {
+        font-size: 18px;
+    }
+    .investment-invested, .investment-return {
+        font-size: 12px;
+    }
+}
