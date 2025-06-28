@@ -166,7 +166,27 @@ const Dashboard = () => {
   return title;
 };
 
+const handleDeleteBlock = async (blockId) => {
+    if (!window.confirm("Are you sure you want to delete this block?")) return;
+    try {
+      await deleteCustomBlock(blockId);
+      toast.success("Block deleted");
 
+      const updatedBlocks = blocks.filter((b) => b._id !== blockId);
+      const updatedCustomBlocks = customBlocks.filter((b) => b._id !== blockId);
+      const updatedUploads = { ...blockUploads };
+      delete updatedUploads[blockId];
+
+      setBlocks(updatedBlocks);
+      setCustomBlocks(updatedCustomBlocks);
+      setBlockUploads(updatedUploads);
+
+      await set("blocks", updatedBlocks);
+      await set("blockUploads", updatedUploads);
+    } catch (err) {
+      toast.error("Failed to delete block");
+    }
+  };
   const handleDeleteBlock = async (blockId) => {
     if (!window.confirm("Are you sure you want to delete this block?")) return;
     try {
@@ -329,19 +349,30 @@ const Dashboard = () => {
                   );
                 })}
               </div>
-              <Button
-                variant="link"
-                className="p-0 mt-2 align-self-start"
-                onClick={() =>
-                  setModalData({
-                    blockName: form.blockName,
-                    entries: form.fullEntries,
-                    createdAt: form.createdAt,
-                  })
-                }
-              >
-                <i className="fas fa-eye" style={{ color: "#000000", fontSize: "1.2rem" }}></i>
-              </Button>
+             <div className="d-flex justify-content-between align-items-center mt-2">
+                          <Button
+                            variant="link"
+                            className="p-0"
+                            title="View"
+                            onClick={() =>
+                              setModalData({
+                                blockName: form.blockName,
+                                entries: form.fullEntries,
+                                createdAt: form.createdAt,
+                              })
+                            }
+                          >
+                            <i className="fas fa-eye text-dark" style={{ fontSize: "1.2rem" }}></i>
+                          </Button>
+                          <Button
+                            variant="link"
+                            className="p-0"
+                            title="Delete"
+                            onClick={() => handleDeleteForm(form._id, blockId)}
+                          >
+                            <i className="fas fa-trash-alt text-danger" style={{ fontSize: "1.2rem" }}></i>
+                          </Button>
+                        </div>
             </Card.Body>
           </Card>
         </Col>
