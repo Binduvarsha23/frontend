@@ -255,25 +255,26 @@ const Dashboard = () => {
   return (
     <Container className="py-4">
       <ToastContainer />
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 style={{
-          fontSize: "1.75rem",
-          fontWeight: "600",
-          fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
-          color: "#343a40",
-          letterSpacing: "0.5px",
-          marginBottom: "0"
-        }}>
-          Your Document Blocks
-        </h2>
-        <small className="text-muted">Manage and access your digital documents</small>
-
-        <div>
-          <Button onClick={() => setShowCreateModal(true)} className="me-2">
-            + Create Custom Block
-          </Button>
-        </div>
-      </div>
+ <div className="d-flex justify-content-between align-items-start flex-wrap mb-4">
+  <div>
+    <h2 style={{
+      fontSize: "1.75rem",
+      fontWeight: "600",
+      fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
+      color: "#343a40",
+      letterSpacing: "0.5px",
+      marginBottom: "0"
+    }}>
+      Your Document Blocks
+    </h2>
+    <small className="text-muted">Manage and access your digital documents</small>
+  </div>
+  <div className="mt-2">
+    <Button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+      + Create Custom Block
+    </Button>
+  </div>
+</div>  
 
       {loading ? (
         <Spinner animation="border" />
