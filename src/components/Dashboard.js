@@ -25,8 +25,11 @@ import {
 import { useInView } from "react-intersection-observer";
 import { get, set } from "idb-keyval";
 import "./Dashboard.css";
+import VaultUnlock from "./VaultUnlock";
+import { getSecurityConfig } from "../api/securityApi";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [blocks, setBlocks] = useState([]);
   const [customBlocks, setCustomBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,8 +41,22 @@ const Dashboard = () => {
   const [visibleBlocks, setVisibleBlocks] = useState(8);
   const { ref: bottomRef, inView } = useInView({ threshold: 0 });
   const [userId, setUserId] = useState(null);
-
-  const navigate = useNavigate();
+  const [unlocked, setUnlocked] = useState(false);
+  const [checking, setChecking] = useState(true);
+  useEffect(() => {
+    const check = async () => {
+      const userId = auth.currentUser?.uid;
+      const config = await getSecurityConfig(userId);
+      const isLocked =
+        config?.pinEnabled ||
+        config?.passwordEnabled ||
+        config?.patternEnabled ||
+        config?.fingerprintEnabled;
+      if (!isLocked) setUnlocked(true);
+      setChecking(false);
+    };
+    check();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -75,7 +92,6 @@ const Dashboard = () => {
       console.warn("Failed to read from IndexedDB:", err);
     }
   };
-
   const fetchInitialData = async () => {
     try {
       const [blockRes, customRes] = await Promise.all([
@@ -135,6 +151,29 @@ const Dashboard = () => {
       state: { blockName: block.name || block.blockName },
     });
   };
+  const handleDeleteForm = async (formId, blockId) => {
+    if (!window.confirm("Are you sure you want to delete this form?")) return;
+    try {
+      // API delete
+      const res = await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${formId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+
+      // Update UI state immediately
+      const updatedUploads = { ...blockUploads };
+      updatedUploads[blockId] = updatedUploads[blockId].filter((f) => f._id !== formId);
+      setBlockUploads(updatedUploads);
+
+      // Update IndexedDB cache
+      await set("blockUploads", updatedUploads);
+
+      toast.success("Form deleted successfully");
+    } catch (err) {
+      console.error("❌ Delete error:", err);
+      toast.error("Failed to delete form");
+    }
+  };
 
 
   const handleCreateBlock = async () => {
@@ -153,40 +192,19 @@ const Dashboard = () => {
   };
 
   const formatBlockTitle = (title) => {
-  if (!title) return "";
-  const words = title.split(" ");
-  if (words.length >= 2) {
-    return (
-      <>
-        {words.slice(0, -1).join(" ")}<br />
-        {words[words.length - 1]}
-      </>
-    );
-  }
-  return title;
-};
-
-const handleDeleteBlock = async (blockId) => {
-    if (!window.confirm("Are you sure you want to delete this block?")) return;
-    try {
-      await deleteCustomBlock(blockId);
-      toast.success("Block deleted");
-
-      const updatedBlocks = blocks.filter((b) => b._id !== blockId);
-      const updatedCustomBlocks = customBlocks.filter((b) => b._id !== blockId);
-      const updatedUploads = { ...blockUploads };
-      delete updatedUploads[blockId];
-
-      setBlocks(updatedBlocks);
-      setCustomBlocks(updatedCustomBlocks);
-      setBlockUploads(updatedUploads);
-
-      await set("blocks", updatedBlocks);
-      await set("blockUploads", updatedUploads);
-    } catch (err) {
-      toast.error("Failed to delete block");
+    if (!title) return "";
+    const words = title.split(" ");
+    if (words.length >= 2) {
+      return (
+        <>
+          {words.slice(0, -1).join(" ")}<br />
+          {words[words.length - 1]}
+        </>
+      );
     }
+    return title;
   };
+
   const handleDeleteBlock = async (blockId) => {
     if (!window.confirm("Are you sure you want to delete this block?")) return;
     try {
@@ -208,30 +226,54 @@ const handleDeleteBlock = async (blockId) => {
       toast.error("Failed to delete block");
     }
   };
+  useEffect(() => {
+    const check = async () => {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return setChecking(false);
 
+      try {
+        const config = await getSecurityConfig(userId);
+        const isLocked =
+          config?.pinEnabled ||
+          config?.passwordEnabled ||
+          config?.patternEnabled ||
+          config?.fingerprintEnabled;
+
+        if (!isLocked) setUnlocked(true);
+      } catch (err) {
+        console.error("🔐 Failed to fetch security config:", err);
+        setUnlocked(true); // allow fallback access
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    check();
+  }, []);
+  if (checking) return <div>Loading...</div>;
+  if (!unlocked) return <VaultUnlock onUnlock={() => setUnlocked(true)} />;
   return (
     <Container className="py-4">
       <ToastContainer />
-    <div className="d-flex justify-content-between align-items-start flex-wrap mb-4">
-  <div>
-    <h2 style={{
-      fontSize: "1.75rem",
-      fontWeight: "600",
-      fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
-      color: "#343a40",
-      letterSpacing: "0.5px",
-      marginBottom: "0"
-    }}>
-      Your Document Blocks
-    </h2>
-    <small className="text-muted">Manage and access your digital documents</small>
-  </div>
-  <div className="mt-2">
-    <Button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
-      + Create Custom Block
-    </Button>
-  </div>
-</div>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 style={{
+          fontSize: "1.75rem",
+          fontWeight: "600",
+          fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
+          color: "#343a40",
+          letterSpacing: "0.5px",
+          marginBottom: "0"
+        }}>
+          Your Document Blocks
+        </h2>
+        <small className="text-muted">Manage and access your digital documents</small>
+
+        <div>
+          <Button onClick={() => setShowCreateModal(true)} className="me-2">
+            + Create Custom Block
+          </Button>
+        </div>
+      </div>
 
       {loading ? (
         <Spinner animation="border" />
@@ -268,12 +310,12 @@ const handleDeleteBlock = async (blockId) => {
                     />
                   )}
                   <Card.Body className="p-2">
-<Card.Title
-  className="mb-0"
-  style={{ fontSize: "1rem", lineHeight: 1.2, wordBreak: "break-word" }}
->
-  {formatBlockTitle(block.name || block.blockName)}
-</Card.Title>
+                    <Card.Title
+                      className="mb-0"
+                      style={{ fontSize: "1rem", lineHeight: 1.2, wordBreak: "break-word" }}
+                    >
+                      {formatBlockTitle(block.name || block.blockName)}
+                    </Card.Title>
 
                     {block.userId && (
                       <Button
@@ -293,63 +335,63 @@ const handleDeleteBlock = async (blockId) => {
               </Col>
             ))}
           </Row>
-<h4 className="mt-5">Recent Uploads</h4>
-<Row>
-  {Object.entries(blockUploads).flatMap(([blockId, forms]) =>
-    forms.map((form, index) => {
-      // Map icons based on block name or document type
-      let iconClass = "fa-file-alt"; // Default icon
-      if (form.blockName.toLowerCase().includes("pan")) iconClass = "fa-id-card";
-      else if (form.blockName.toLowerCase().includes("aadhaar")) iconClass = "fa-address-card";
-      else if (form.blockName.toLowerCase().includes("mutual fund")) iconClass = "fa-piggy-bank";
-      else if (form.blockName.toLowerCase().includes("insurance")) iconClass = "fa-umbrella";
+          <h4 className="mt-5" style={{ paddingBottom: "15px" }}>Recent Uploads</h4>
+          <Row>
+            {Object.entries(blockUploads).flatMap(([blockId, forms]) =>
+              forms.map((form, index) => {
+                // Map icons based on block name or document type
+                let iconClass = "fa-file-alt"; // Default icon
+                if (form.blockName.toLowerCase().includes("pan")) iconClass = "fa-id-card";
+                else if (form.blockName.toLowerCase().includes("aadhaar")) iconClass = "fa-address-card";
+                else if (form.blockName.toLowerCase().includes("mutual fund")) iconClass = "fa-piggy-bank";
+                else if (form.blockName.toLowerCase().includes("insurance")) iconClass = "fa-umbrella";
 
-      return (
-        <Col key={`${blockId}-${index}`} xs={12} sm={6} md={4} lg={3} className="mb-4">
-          <Card className="h-100 shadow-sm recent-upload-card" style={{ borderRadius: "10px", height: "200px" }}>
-            <Card.Body className="d-flex flex-column justify-content-between" style={{ padding: "15px" }}>
-              <div style={{ overflowY: "auto", maxHeight: "145px" }}>
-                <div className="d-flex align-items-center mb-2">
-                  <i
-                    className={`fas ${iconClass}`}
-                    style={{ fontSize: "1.5rem", color: "#007bff", paddingRight: "10px" }}
-                  ></i>
-                  <Card.Title className="text-truncate mb-0" style={{ fontSize: "1.1rem", maxWidth: "80%" }}>
-                    {form.blockName}
-                  </Card.Title>
-                </div>
-                <p className="text-muted mb-2" style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {new Date(form.createdAt).toLocaleString()}
-                </p>
-                {form.previewImage && (
-                  <img
-                    src={form.previewImage}
-                    alt="preview"
-                    style={{
-                      width: "100%",
-                      height: "100px",
-                      objectFit: "cover",
-                      borderRadius: "6px",
-                      marginBottom: "10px",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => setModalImage(form.previewImage)}
-                  />
-                )}
-                {form.entries.map(([field, value], i) => {
-                  const decryptedValue = value?.encrypted ? decryptData(value.encrypted) : value;
-                  const valueStr = typeof decryptedValue === "string" ? decryptedValue : String(decryptedValue);
-                  return (
-                    <div key={i} className="d-flex justify-content-between" style={{ fontSize: "0.85rem", marginBottom: "5px", wordBreak: "break-word" }}>
-                      <strong style={{ marginRight: "10px", minWidth: "40%", whiteSpace: "nowrap" }}>{field}:</strong>
-                      <span style={{ textAlign: "right", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {valueStr.length > 30 ? valueStr.slice(0, 30) + "..." : valueStr}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-             <div className="d-flex justify-content-between align-items-center mt-2">
+                return (
+                  <Col key={`${blockId}-${index}`} xs={12} sm={6} md={4} lg={3} className="mb-4">
+                    <Card className="h-100 shadow-sm recent-upload-card" style={{ borderRadius: "10px", height: "200px" }}>
+                      <Card.Body className="d-flex flex-column justify-content-between" style={{ padding: "15px" }}>
+                        <div style={{ overflowY: "auto", maxHeight: "145px" }}>
+                          <div className="d-flex align-items-center mb-2">
+                            <i
+                              className={`fas ${iconClass}`}
+                              style={{ fontSize: "1.5rem", color: "#007bff", paddingRight: "10px" }}
+                            ></i>
+                            <Card.Title className="text-truncate mb-0" style={{ fontSize: "1.1rem", maxWidth: "80%" }}>
+                              {form.blockName}
+                            </Card.Title>
+                          </div>
+                          <p className="text-muted mb-2" style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {new Date(form.createdAt).toLocaleString()}
+                          </p>
+                          {form.previewImage && (
+                            <img
+                              src={form.previewImage}
+                              alt="preview"
+                              style={{
+                                width: "100%",
+                                height: "100px",
+                                objectFit: "cover",
+                                borderRadius: "6px",
+                                marginBottom: "10px",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => setModalImage(form.previewImage)}
+                            />
+                          )}
+                          {form.entries.map(([field, value], i) => {
+                            const decryptedValue = value?.encrypted ? decryptData(value.encrypted) : value;
+                            const valueStr = typeof decryptedValue === "string" ? decryptedValue : String(decryptedValue);
+                            return (
+                              <div key={i} className="d-flex justify-content-between" style={{ fontSize: "0.85rem", marginBottom: "5px", wordBreak: "break-word" }}>
+                                <strong style={{ marginRight: "10px", minWidth: "40%", whiteSpace: "nowrap" }}>{field}:</strong>
+                                <span style={{ textAlign: "right", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {valueStr.length > 30 ? valueStr.slice(0, 30) + "..." : valueStr}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center mt-2">
                           <Button
                             variant="link"
                             className="p-0"
@@ -373,13 +415,14 @@ const handleDeleteBlock = async (blockId) => {
                             <i className="fas fa-trash-alt text-danger" style={{ fontSize: "1.2rem" }}></i>
                           </Button>
                         </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      );
-    })
-  )}
-</Row>     
+
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })
+            )}
+          </Row>
           <div ref={bottomRef}></div>
         </>
       )}
@@ -407,7 +450,6 @@ const handleDeleteBlock = async (blockId) => {
         </Modal.Footer>
       </Modal>
 
-      {/* Full Data Modal */}
       <Modal show={!!modalData} onHide={() => setModalData(null)} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{modalData?.blockName} - Full Details</Modal.Title>
