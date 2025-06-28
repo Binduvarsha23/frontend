@@ -227,6 +227,7 @@ useEffect(() => {
   }
 
   return (
+    <>
     <div className="container py-4 wealth-dashboard-container">
       <h2 className="mb-4 text-center section-title">
         <FaChartLine className="title-icon" aria-hidden="true" /> Wealth Overview
@@ -678,6 +679,7 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
       </div>
     </form>
   <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+        </>
 );
 };
 
