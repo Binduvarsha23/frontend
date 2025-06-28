@@ -46,8 +46,8 @@ useEffect(() => {
   setError(null);
   try {
     const [assetsRes, investmentsRes] = await Promise.all([
-      axios.get(`http://localhost:5000/api/assets?userId=${userId}`),
-      axios.get(`http://localhost:5000/api/investments?userId=${userId}`),
+      axios.get(`https://backend-pbmi.onrender.com/api/assets?userId=${userId}`),
+      axios.get(`https://backend-pbmi.onrender.com/api/investments?userId=${userId}`),
     ]);
     setAssets(assetsRes.data);
     setInvestments(investmentsRes.data);
@@ -69,7 +69,7 @@ useEffect(() => {
 
  const addAsset = async (asset) => {
   try {
-    const res = await axios.post("http://localhost:5000/api/assets", {
+    const res = await axios.post("https://backend-pbmi.onrender.com/api/assets", {
       ...asset,
       userId,
     });
@@ -83,7 +83,7 @@ useEffect(() => {
 
   const updateAsset = async (id, updatedAsset) => {
     try {
-      const res = await axios.put(`http://localhost:5000/api/assets/${id}`, updatedAsset);
+      const res = await axios.put(`https://backend-pbmi.onrender.com/api/assets/${id}`, updatedAsset);
       setAssets(assets.map((a) => (a._id === id ? res.data : a)));
       setEditing({ type: null, data: null }); // Clear editing state after update
     } catch (err) {
@@ -95,7 +95,7 @@ useEffect(() => {
   const deleteAsset = async (id) => {
     if (window.confirm("Are you sure you want to delete this asset?")) {
       try {
-        await axios.delete(`http://localhost:5000/api/assets/${id}`);
+        await axios.delete(`https://backend-pbmi.onrender.com/api/assets/${id}`);
         setAssets(assets.filter((a) => a._id !== id));
       } catch (err) {
         console.error("Error deleting asset:", err);
@@ -106,7 +106,7 @@ useEffect(() => {
 
  const addInvestment = async (investment) => {
   try {
-    const res = await axios.post("http://localhost:5000/api/investments", {
+    const res = await axios.post("https://backend-pbmi.onrender.com/api/investments", {
       ...investment,
       userId,
     });
@@ -119,7 +119,7 @@ useEffect(() => {
 
   const updateInvestment = async (id, updatedInvestment) => {
     try {
-      const res = await axios.put(`http://localhost:5000/api/investments/${id}`, updatedInvestment);
+      const res = await axios.put(`https://backend-pbmi.onrender.com/api/investments/${id}`, updatedInvestment);
       setInvestments(investments.map((i) => (i._id === id ? res.data : i)));
       setEditing({ type: null, data: null }); // Clear editing state after update
     } catch (err) {
@@ -131,7 +131,7 @@ useEffect(() => {
   const deleteInvestment = async (id) => {
     if (window.confirm("Are you sure you want to delete this investment?")) {
       try {
-        await axios.delete(`http://localhost:5000/api/investments/${id}`);
+        await axios.delete(`https://backend-pbmi.onrender.com/api/investments/${id}`);
         setInvestments(investments.filter((i) => i._id !== id));
       } catch (err) {
         console.error("Error deleting investment:", err);
