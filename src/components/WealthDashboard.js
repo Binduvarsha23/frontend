@@ -20,6 +20,8 @@ import {
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import "./WealthDashboard.css"; // Import the new CSS file
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const WealthDashboard = () => {
   const [assets, setAssets] = useState([]);
@@ -501,12 +503,31 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(form);
-    // Form will reset via useEffect when initial becomes null after submit,
-    // or manually if not in edit mode.
-  };
+ const handleSubmit = (e) => {
+  e.preventDefault();
+
+  // Common validation
+  const isNegative = (val) => Number(val) < 0;
+
+  if (type === "asset") {
+    if (isNegative(form.value)) {
+      toast.error("Asset value cannot be negative.");
+      return;
+    }
+  } else if (type === "investment") {
+    if (isNegative(form.investedAmount)) {
+      toast.error("Invested amount cannot be negative.");
+      return;
+    }
+    if (isNegative(form.currentValue)) {
+      toast.error("Current value cannot be negative.");
+      return;
+    }
+  }
+
+  onSubmit(form);
+};
+
 
   const typeOptions = {
     asset: ["Real Estate", "Vehicle", "Luxury Items", "Other"],
@@ -656,7 +677,8 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
         )}
       </div>
     </form>
-  );
+  <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+);
 };
 
 export default WealthDashboard;
