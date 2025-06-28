@@ -227,7 +227,6 @@ useEffect(() => {
   }
 
   return (
-    <>
     <div className="container py-4 wealth-dashboard-container">
       <h2 className="mb-4 text-center section-title">
         <FaChartLine className="title-icon" aria-hidden="true" /> Wealth Overview
@@ -536,6 +535,7 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} aria-label={`${initial ? 'Edit' : 'Add New'} ${type === 'asset' ? 'Asset' : 'Investment'} Form`}>
       <div className="mb-3">
         <label htmlFor={`${type}-name`} className="form-label">
@@ -679,7 +679,7 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
       </div>
     </form>
   <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
-        </>
+  </>
 );
 };
 
