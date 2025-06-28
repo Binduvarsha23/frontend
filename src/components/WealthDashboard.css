@@ -1,601 +1,480 @@
-/* General Layout and Background */
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: #f0f2f5;
-    margin: 0;
-    padding: 0;
-    line-height: 1.6; /* Improved readability */
-    color: #333;
-}
-
+/* General container adjustments for responsive layout */
 .wealth-dashboard-container {
-    max-width: 1000px;
-    margin: 20px auto; 
-    padding: 0 15px; 
+  padding-left: 20px; /* Default padding */
+  padding-right: 20px; /* Default padding */
 }
 
-/* Section Titles */
-.section-title {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
-    text-align: center; 
-}
-
-.section-title .title-icon {
-    font-size: 2.5rem;
-    color: #007bff;
-}
-
-/* Loading Spinner */
-.loading-spinner, .error-message {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 80vh; /* Takes most of the viewport height */
-    font-size: 1.2rem;
-    color: #555;
-}
-
-.loading-spinner .spin {
-    animation: spin 1.5s linear infinite;
-    color: #007bff;
-    margin-bottom: 20px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.error-message {
-    padding: 20px;
-    border-radius: 10px;
-    max-width: 500px;
-    margin: 50px auto;
-}
-.error-message .btn {
-    padding: 8px 20px;
-    font-size: 1rem;
-}
-
-/* Summary Cards */
+/* --- Summary Cards --- */
 .summary-cards .summary-card {
-    padding: 20px;
-    border-radius: 12px;
-    color: #ffffff;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    height: 100%; /* Ensures cards in a row have equal height */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  min-height: 100px; /* Ensure a minimum height for cards */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
 }
 
-.summary-cards .summary-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+.summary-cards h6 {
+  font-size: 0.9rem; /* Slightly smaller font for titles */
+  margin-bottom: 5px;
+  word-break: break-word; /* Allow long words to break */
 }
 
-.summary-cards .summary-card h6 {
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 5px;
-    opacity: 0.9;
+.summary-cards p {
+  font-size: 1.2rem; /* Larger font for values */
+  font-weight: bold;
+  word-break: break-all; /* Break long numbers */
 }
 
-.summary-cards .summary-card p {
-    font-size: 1.5rem;
-    font-weight: 700;
+/* Specific background colors for summary cards */
+.summary-card.bg-info {
+  background-color: #17a2b8 !important;
 }
 
-/* Background Colors for Summary Cards */
-.summary-cards .bg-info { background-color: #0dcaf0 !important; }
-.summary-cards .bg-success { background-color: #198754 !important; }
-.summary-cards .bg-warning { background-color: #ffc107 !important; color: #333 !important;}
-.summary-cards .bg-secondary { background-color: #6c757d !important; }
-
-
-/* Tab Buttons */
-.tab-buttons {
-    margin-bottom: 30px;
+.summary-card.bg-success {
+  background-color: #28a745 !important;
 }
 
+.summary-card.bg-warning {
+  background-color: #ffc107 !important;
+  color: #343a40 !important; /* Darker text for warning background */
+}
+
+.summary-card.bg-secondary {
+  background-color: #6c757d !important;
+}
+
+
+/* --- Tabs --- */
 .tab-buttons .btn {
-    font-weight: 600;
-    padding: 10px 25px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    min-width: 150px;  
-    margin-left: 10px;
+  margin: 0 5px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
 }
 
 .tab-buttons .btn-dark {
-    background-color: #134b84;
-    border-color: #343a40;
+  background-color: #343a40;
+  border-color: #343a40;
 }
 
 .tab-buttons .btn-outline-dark {
-    border-color: #134b84;
-    color: #343a40;
+  color: #343a40;
+  border-color: #343a40;
 }
 
-.tab-buttons .btn-outline-dark:hover {
-    background-color: #134b84;
-    color: #fff;
+.tab-buttons .btn:hover {
+  opacity: 0.9;
 }
 
-/* Form Card */
+
+/* --- Form Card --- */
 .form-card {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 30px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    height: 100%; /* Make form card fill height */
+  background-color: #2a2a2a; /* Dark background for form */
+  color: #ffffff;
+  border: 1px solid #444;
 }
 
 .form-card-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 25px;
+  color: #ffffff;
+  margin-bottom: 20px;
+  font-size: 1.25rem;
 }
 
 .form-card .form-label {
-    font-weight: 500;
-    color: #555;
-    margin-bottom: 5px;
-    font-size: 0.95rem; /* Slightly smaller for labels */
+  color: #ccc;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
 }
 
 .form-card .form-control,
 .form-card .form-select {
-    border-radius: 8px;
-    padding: 10px 15px;
-    border: 1px solid #ddd;
-    box-shadow: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background-color: #3a3a3a;
+  color: #ffffff;
+  border: 1px solid #555;
+  padding: 0.75rem 1rem;
+}
+
+.form-card .form-control::placeholder {
+  color: #aaa;
 }
 
 .form-card .form-control:focus,
 .form-card .form-select:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    outline: none; /* Remove default outline */
+  background-color: #4a4a4a;
+  border-color: #6a6a6a;
+  box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25); /* Focus outline */
 }
 
-.form-card .btn-primary,
-.form-card .btn-outline-secondary {
-    font-weight: 600;
-    padding: 10px 20px;
-    border-radius: 8px;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-    min-height: 44px; /* Ensure minimum tap target size for buttons */
-}
-
+/* Buttons in form */
 .form-card .btn-primary {
-    background-color: #007bff;
-    border-color: #007bff;
-    color: #fff;
+  background-color: #007bff;
+  border-color: #007bff;
+  transition: background-color 0.2s;
 }
 
 .form-card .btn-primary:hover {
-    background-color: #0056b3;
-    border-color: #0056b3;
+  background-color: #0056b3;
+  border-color: #0056b3;
 }
 
 .form-card .btn-outline-secondary {
-    border-color: #6c757d;
-    color: #6c757d;
+  color: #6c757d;
+  border-color: #6c757d;
+  transition: background-color 0.2s, color 0.2s;
 }
+
 .form-card .btn-outline-secondary:hover {
-    background-color: #6c757d;
-    color: #fff;
+  background-color: #6c757d;
+  color: #fff;
 }
 
 
-/* Section Cards (Assets and Investments display) */
+/* --- Section Cards (Assets & Investments List) --- */
 .section-card {
-    background-color: #ffffff;
-    border-radius: 12px;
-    padding: 30px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    min-height: 100%; /* Ensure content area expands as needed */
+  background-color: #2a2a2a; /* Dark background for sections */
+  color: #ffffff;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-.section-card .section-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
 }
 
-.section-card .section-header i,
-.section-card .section-header svg {
-    font-size: 24px;
-    color: #333;
+.section-header h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0;
+  color: #ffffff;
 }
 
-.section-card .section-header h2 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
+.section-header svg {
+  font-size: 1.8rem;
+  color: #007bff; /* Icon color */
 }
 
-.section-card .section-description {
-    font-size: 15px;
-    color: #666;
-    margin-top: 0;
-    margin-bottom: 25px;
+.section-description {
+  color: #bbb;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
 }
 
-.empty-state-message {
-    padding: 20px;
-    border: 1px dashed #ccc;
-    border-radius: 8px;
-    color: #888;
-    background-color: #f8f8f8;
-    margin-top: 25px !important;
+/* --- Asset and Investment Items (General Styling) --- */
+.asset-item,
+.investment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #6e6565; /* Slightly lighter dark background for items */
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 10px;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  cursor: pointer;
+  flex-wrap: wrap; /* Allow items to wrap on smaller screens */
 }
 
+.asset-item:hover,
+.investment-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
 
-/* Asset Category (Individual sections like Real Estate, Vehicle) */
+.asset-item:focus,
+.investment-item:focus {
+  outline: 2px solid #007bff; /* Focus indicator */
+  outline-offset: 2px;
+}
+
+.asset-details,
+.investment-details {
+  flex: 1; /* Allows details to take available space */
+  min-width: 0; /* Ensures content can shrink */
+}
+
+.asset-details h4,
+.investment-details h4 {
+  font-size: 1.1rem;
+  margin-bottom: 5px;
+  color: #007bff; /* Highlight name */
+  word-break: break-word; /* Ensure long names break */
+}
+
+.asset-item p,
+.investment-item p {
+  font-size: 0.85rem;
+  color: #ccc;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* --- Asset Specific Styling --- */
 .asset-category {
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background-color: #fdfdfd;
-}
-
-.asset-category:last-child {
-    margin-bottom: 0;
+  margin-bottom: 25px;
 }
 
 .category-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.category-header i,
-.category-header svg {
-    font-size: 20px;
-    color: #555;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #555;
 }
 
 .category-header h3 {
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
+  font-size: 1.3rem;
+  margin-bottom: 0;
+  color: #eee;
+}
+
+.category-header svg {
+  font-size: 1.5rem;
+  color: #ffc107; /* Example: default icon color */
 }
 
 .item-count {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    margin-left: auto;
-    white-space: nowrap;
+  font-size: 0.8rem;
+  background-color: #555;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 15px;
+  margin-left: auto; /* Push to the right */
 }
-
-.item-count-real-estate { background-color: #e6f7ff; color: #007bff; }
-.item-count-vehicle { background-color: #e6ffe6; color: #28a745; }
-.item-count-luxury-items { background-color: #f7e6ff; color: #9c27b0; }
-.item-count-other { background-color: #f8f9fa; color: #6c757d; }
-
-
-/* Individual Asset Item */
-.asset-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 15px 0;
-    border-top: 1px solid #eee;
-    cursor: default; /* Change cursor for non-clickable items */
-}
-
-.asset-item:first-of-type {
-    border-top: none;
-}
-
-.asset-details h4 {
-    font-size: 17px;
-    font-weight: 600;
-    color: #333;
-    margin-top: 0;
-    margin-bottom: 5px;
-}
-
-.asset-details p {
-    font-size: 14px;
-    color: #666;
-    margin: 0 0 5px 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.asset-details p i,
-.asset-details p svg {
-    font-size: 13px;
-    color: #888;
-}
-
-.asset-location .icon-small {
-    font-size: 11px;
-    vertical-align: middle;
-}
-
-.icon-small-link {
-    color: #007bff; /* Link color for small icon */
-    text-decoration: none;
-    transition: color 0.2s ease;
-}
-.icon-small-link:hover {
-    color: #0056b3;
-}
-
 
 .asset-value-wrapper {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
+  text-align: right;
+  min-width: 120px; /* Ensure value and buttons have space */
 }
 
 .asset-value {
-    font-size: 20px;
-    font-weight: 700;
-    color: #333;
-    white-space: nowrap;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #28a745; /* Green for value */
+  display: block; /* Ensure it takes its own line */
+  margin-bottom: 5px;
 }
 
-/* Investment Item */
-.investment-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background-color: #fdfdfd;
-    transition: box-shadow 0.2s ease;
-    cursor: default;
-}
-.investment-item:hover {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); /* Subtle hover for items */
+.icon-small-link {
+  color: #007bff;
+  margin-left: 5px;
 }
 
-
-.investment-item:last-child {
-    margin-bottom: 0;
+.icon-small {
+  font-size: 0.8em;
 }
 
-.investment-details {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
+/* --- Investment Specific Styling --- */
 .investment-icon-wrapper {
-    background-color: #f0f2f5;
-    border-radius: 50%;
-    width: 45px;
-    height: 45px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-shrink: 0;
+  margin-right: 15px;
+  font-size: 2.2rem;
+  /* Specific colors handled by utility classes in JS */
 }
 
-.investment-icon-wrapper i,
-.investment-icon-wrapper svg {
-    font-size: 22px;
-}
+.investment-icon-blue { color: #007bff; } /* Stocks */
+.investment-icon-green { color: #28a745; } /* Mutual Funds */
+.investment-icon-orange { color: #fd7e14; } /* Digital Gold */
+.investment-icon-red { color: #dc3545; } /* Fixed Deposit */
+.investment-icon-grey { color: #6c757d; } /* Default/Other */
 
-/* Investment Icon Colors */
-.investment-icon-green { color: #28a745; }
-.investment-icon-blue { color: #007bff; }
-.investment-icon-orange { color: #fd7e14; }
-.investment-icon-red { color: #dc3545; }
-.investment-icon-grey { color: #6c757d; }
-
-
-.investment-details h4 {
-    font-size: 17px;
-    font-weight: 600;
-    color: #333;
-    margin-top: 0;
-    margin-bottom: 5px;
-}
-
-.investment-details p {
-    font-size: 14px;
-    color: #666;
-    margin: 0 0 5px 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.investment-details p i,
-.investment-details p svg {
-    font-size: 13px;
-    color: #888;
-}
 
 .investment-value-details {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 5px;
+  text-align: right;
+  min-width: 150px; /* Give more space for values and return */
 }
 
 .investment-current-value {
-    font-size: 20px;
-    font-weight: 700;
-    color: #333;
-    white-space: nowrap;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #28a745; /* Green for current value */
+  display: block;
+  margin-bottom: 5px;
 }
 
 .investment-invested {
-    font-size: 13px;
-    color: #888;
-    margin: 0;
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 3px;
 }
 
 .investment-return {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
+  font-weight: bold;
+  font-size: 0.9rem;
 }
 
 .investment-return-positive {
-    color: #28a745;
+  color: #28a745; /* Green */
 }
 
 .investment-return-negative {
-    color: #dc3545;
+  color: #dc3545; /* Red */
 }
 
-/* Action Buttons for Edit/Delete */
+
+/* --- Action Buttons (Edit/Delete) --- */
 .action-buttons {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px; /* Space from value/return */
+  justify-content: flex-end; /* Align to the right */
 }
 
 .action-btn {
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    min-width: 38px; /* Ensure good tap target */
-    min-height: 38px; /* Ensure good tap target */
-    display: inline-flex; /* Use flex to center icon */
-    justify-content: center;
-    align-items: center;
+  border-radius: 50%; /* Make them circular */
+  width: 34px; /* Fixed width */
+  height: 34px; /* Fixed height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0; /* Remove padding */
+  font-size: 0.9rem;
 }
-.action-btn svg {
-    font-size: 1rem;
+
+.action-btn:hover {
+  opacity: 0.8;
+}
+
+/* --- Empty State Messages --- */
+.empty-state-message {
+  padding: 30px;
+  background-color: #343434;
+  border-radius: 8px;
+  border: 1px dashed #555;
+  color: #bbb !important;
+  font-style: italic;
+}
+
+/* --- Loading Spinner & Error Message --- */
+.loading-spinner, .error-message {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh; /* Center in viewport */
+  color: #007bff;
+  font-size: 1.2rem;
+}
+
+.loading-spinner .spin {
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+  color: #007bff;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  color: #dc3545; /* Red for error */
+  background-color: #2a2a2a;
+  border: 1px solid #dc3545;
+  padding: 25px;
+  border-radius: 8px;
+  margin: 20px auto;
+  max-width: 500px;
+}
+
+.error-message .btn {
+  background-color: #007bff;
+  border-color: #007bff;
 }
 
 
-/* Responsive Adjustments */
-@media (max-width: 992px) {
-    .section-title {
-        font-size: 1.8rem;
-    }
-    .section-title .title-icon {
-        font-size: 2rem;
-    }
-    .section-card {
-        padding: 20px;
-    }
-    .form-card {
-        padding: 20px;
-    }
-    .asset-category {
-        padding: 15px;
-    }
-    .investment-item {
-        padding: 15px;
-    }
-    .asset-value, .investment-current-value {
-        font-size: 18px;
-    }
-}
-
+/* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
-    .section-title {
-        font-size: 1.6rem;
-        margin-bottom: 30px;
-    }
-    .section-title .title-icon {
-        font-size: 1.8rem;
-    }
-    .summary-cards .summary-card p {
-        font-size: 1.2rem;
-    }
-    .summary-cards .summary-card h6 {
-        font-size: 0.9rem;
-    }
+  /* Adjustments for the sidebar pushing content */
+  body.sidebar-open .wealth-dashboard-container {
+    padding-left: 20px; /* Reset or reduce padding if sidebar is handled differently */
+  }
 
-    .tab-buttons {
-        flex-direction: column; /* Stack buttons vertically */
-        gap: 10px;
-    }
-    .tab-buttons .btn {
-        width: 100%;
-        max-width: 250px; /* Limit button width on small screens for better aesthetics */
-        margin: 0 auto; /* Center stacked buttons */
-    }
+  .wealth-dashboard-container {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
 
-    /* Stack asset and investment items */
-    .asset-item,
-    .investment-item {
-        flex-direction: column;
-        align-items: flex-start; /* Align content to the left when stacked */
-        gap: 10px;
-        text-align: left; /* Ensure text aligns left */
-    }
+  /* Summary Cards adjustments for smaller screens */
+  .summary-cards .summary-card {
+    min-height: 80px; /* Slightly smaller height on mobile */
+  }
 
-    .asset-value-wrapper,
-    .investment-value-details {
-        width: 100%; /* Make value section take full width */
-        align-items: flex-start; /* Align value content to the left */
-    }
+  .summary-cards h6 {
+    font-size: 0.8rem;
+  }
 
-    .action-buttons {
-        margin-top: 5px;
-        justify-content: flex-start; /* Align action buttons to the left */
-    }
+  .summary-cards p {
+    font-size: 1rem;
+  }
 
-    .form-card .d-flex {
-        flex-direction: column;
-        gap: 10px;
-    }
+  /* Form and List Layout */
+  .wealth-dashboard-container .row.g-4 > div {
+    padding: 0 10px; /* Adjust grid padding */
+  }
+
+  .form-card {
+    margin-bottom: 20px; /* Space between form and list on small screens */
+  }
+
+  /* Asset and Investment Items - Stack content vertically */
+  .asset-item,
+  .investment-item {
+    flex-direction: column;
+    align-items: flex-start; /* Align text to the left */
+  }
+
+  .asset-details,
+  .investment-details {
+    margin-bottom: 10px; /* Space between details and values */
+    width: 100%; /* Take full width */
+  }
+
+  .asset-value-wrapper,
+  .investment-value-details {
+    width: 100%; /* Take full width */
+    text-align: left; /* Align values to the left */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .action-buttons {
+    justify-content: flex-start; /* Align buttons to the left */
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  .investment-icon-wrapper {
+    margin-right: 0; /* Remove right margin */
+    margin-bottom: 10px; /* Add bottom margin for spacing */
+  }
 }
 
-@media (max-width: 576px) {
-    .wealth-dashboard-container {
-        padding: 10px;
-    }
-    .section-card, .form-card {
-        padding: 15px;
-    }
-    .section-header h2 {
-        font-size: 20px;
-    }
-    .section-description {
-        font-size: 13px;
-    }
-    .asset-item, .investment-item {
-        padding: 10px 0;
-    }
-    .asset-details h4, .investment-details h4 {
-        font-size: 16px;
-    }
-    .asset-details p, .investment-details p {
-        font-size: 13px;
-    }
-    .asset-value, .investment-current-value {
-        font-size: 18px;
-    }
-    .investment-invested, .investment-return {
-        font-size: 12px;
-    }
+/* Specific adjustments for very small screens (e.g., iPhone SE) if needed */
+@media (max-width: 400px) {
+  .summary-cards .summary-card {
+    padding: 10px;
+  }
+
+  .summary-cards h6 {
+    font-size: 0.75rem;
+  }
+
+  .summary-cards p {
+    font-size: 0.9rem;
+  }
 }
