@@ -15,6 +15,7 @@ import Layout from "./components/Layout";
 import UserDashboard from "./components/UserDashboard";
 import SecuritySettings from "./components/SecuritySettings";
 import WealthDashboard from "./components/WealthDashboard";
+import PasswordManager from "./components/PasswordManager";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -30,7 +31,6 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/admin" element={<AdminPanel />} />
-
         {/* Protected Routes */}
         <Route
           path="/dashboard"
@@ -80,6 +80,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <SecuritySettings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/password"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <PasswordManager/>
               </Layout>
             </ProtectedRoute>
           }
