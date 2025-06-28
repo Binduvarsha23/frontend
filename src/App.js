@@ -13,6 +13,8 @@ import UnderConstruction from "./components/UnderConstruction";
 import AdminPanel from "./components/AdminPanel";
 import Layout from "./components/Layout";
 import UserDashboard from "./components/UserDashboard";
+import SecuritySettings from "./components/SecuritySettings";
+import WealthDashboard from "./components/WealthDashboard";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -68,6 +70,26 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <UserDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/security"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SecuritySettings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/wealth"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <WealthDashboard />
               </Layout>
             </ProtectedRoute>
           }
