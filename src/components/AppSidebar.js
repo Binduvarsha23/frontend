@@ -34,6 +34,9 @@ const handleTabClick = (id) => {
   else if (id === "wealth") {
     navigate("/app/wealth");
   }
+  else if (id === "passwords") {
+    navigate("/app/password");
+  }
   else {
     navigate(`/app/${id}`);
   }
