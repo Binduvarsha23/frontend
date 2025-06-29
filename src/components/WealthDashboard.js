@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
-import { FaEdit, FaTrashAlt, FaPlusCircle, FaRegSave, FaSpinner } // Added FaSpinner for loading
-from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaPlusCircle, FaRegSave, FaSpinner } from "react-icons/fa";
 import {
   FaFileInvoice,
   FaChartLine,
@@ -23,74 +22,141 @@ import "./WealthDashboard.css"; // Import the new CSS file
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// Helper functions for localStorage caching
+const getCachedData = (key) => {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error("Error reading from localStorage", e);
+    return null;
+  }
+};
+
+const setCachedData = (key, data) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error("Error writing to localStorage", e);
+  }
+};
+
 const WealthDashboard = () => {
   const [assets, setAssets] = useState([]);
   const [investments, setInvestments] = useState([]);
   const [editing, setEditing] = useState({ type: null, data: null });
   const [activeTab, setActiveTab] = useState("assets");
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
-  const [error, setError] = useState(null); 
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    if (user) {
-      setUserId(user.uid);
-    } else {
-      setUserId(null);
-    }
-  });
-  return () => unsubscribe();
-}, []);
+  const [error, setError] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // To differentiate initial cache load from background fetch
 
- const fetchData = async () => {
-  if (!userId) return;
-  setLoading(true);
-  setError(null);
-  try {
-    const [assetsRes, investmentsRes] = await Promise.all([
-      axios.get(`https://backend-pbmi.onrender.com/api/assets?userId=${userId}`),
-      axios.get(`https://backend-pbmi.onrender.com/api/investments?userId=${userId}`),
-    ]);
-    setAssets(assetsRes.data);
-    setInvestments(investmentsRes.data);
-  } catch (err) {
-    console.error("Error fetching data:", err);
-    setError("Failed to load data. Please try again later.");
-  } finally {
-    setLoading(false);
-  }
-};
-
-
- useEffect(() => {
-  if (userId) {
-    fetchData();
-  }
-}, [userId]);
-
-
- const addAsset = async (asset) => {
-  try {
-    const res = await axios.post("https://backend-pbmi.onrender.com/api/assets", {
-      ...asset,
-      userId,
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        setUserId(null);
+        // Clear data and cache if user logs out
+        setAssets([]);
+        setInvestments([]);
+        localStorage.removeItem('cachedAssets');
+        localStorage.removeItem('cachedInvestments');
+      }
     });
-    setAssets([...assets, res.data]);
-  } catch (err) {
-    console.error("Error adding asset:", err);
-    setError("Failed to add asset.");
-  }
-};
+    return () => unsubscribe();
+  }, []);
 
+  const fetchData = useCallback(async (isBackgroundFetch = false) => {
+    if (!userId) {
+      if (isInitialLoad) setLoading(false); // If no user, no data to load, stop spinner
+      return;
+    }
+
+    if (!isBackgroundFetch) {
+      // On initial load, try to load from cache first
+      const cachedAssets = getCachedData(`cachedAssets_${userId}`);
+      const cachedInvestments = getCachedData(`cachedInvestments_${userId}`);
+
+      if (cachedAssets || cachedInvestments) {
+        if (cachedAssets) setAssets(cachedAssets);
+        if (cachedInvestments) setInvestments(cachedInvestments);
+        setLoading(false); // Hide spinner immediately if cached data is found
+        setIsInitialLoad(false); // Mark initial load as complete
+      } else {
+        setLoading(true); // Show spinner if no cached data
+      }
+    }
+
+    setError(null); // Clear previous errors
+    try {
+      const [assetsRes, investmentsRes] = await Promise.all([
+        axios.get(`https://backend-pbmi.onrender.com/api/assets?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/investments?userId=${userId}`),
+      ]);
+
+      setAssets(assetsRes.data);
+      setInvestments(investmentsRes.data);
+
+      // Update cache
+      setCachedData(`cachedAssets_${userId}`, assetsRes.data);
+      setCachedData(`cachedInvestments_${userId}`, investmentsRes.data);
+
+      if (isBackgroundFetch) {
+        toast.success("Data updated in the background!", { autoClose: 1500 });
+      }
+
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load data. Please try again later.");
+      // If error occurs and no cached data was displayed, ensure loading state is cleared.
+      if (!getCachedData(`cachedAssets_${userId}`) && !getCachedData(`cachedInvestments_${userId}`)) {
+        setLoading(false);
+      }
+    } finally {
+      if (!isBackgroundFetch) {
+        setLoading(false);
+        setIsInitialLoad(false);
+      }
+    }
+  }, [userId, isInitialLoad]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchData(); // Initial fetch (tries cache first, then network)
+      // Optional: Set up a periodic refresh for more real-time updates
+      // const interval = setInterval(() => fetchData(true), 60000); // Refresh every 60 seconds
+      // return () => clearInterval(interval);
+    }
+  }, [userId, fetchData]);
+
+  const addAsset = async (asset) => {
+    try {
+      const res = await axios.post("https://backend-pbmi.onrender.com/api/assets", {
+        ...asset,
+        userId,
+      });
+      const newAssets = [...assets, res.data];
+      setAssets(newAssets);
+      setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
+      toast.success("Asset added successfully!");
+    } catch (err) {
+      console.error("Error adding asset:", err);
+      toast.error("Failed to add asset.");
+    }
+  };
 
   const updateAsset = async (id, updatedAsset) => {
     try {
       const res = await axios.put(`https://backend-pbmi.onrender.com/api/assets/${id}`, updatedAsset);
-      setAssets(assets.map((a) => (a._id === id ? res.data : a)));
+      const newAssets = assets.map((a) => (a._id === id ? res.data : a));
+      setAssets(newAssets);
+      setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
       setEditing({ type: null, data: null }); // Clear editing state after update
+      toast.success("Asset updated successfully!");
     } catch (err) {
       console.error("Error updating asset:", err);
-      setError("Failed to update asset.");
+      toast.error("Failed to update asset.");
     }
   };
 
@@ -98,35 +164,44 @@ useEffect(() => {
     if (window.confirm("Are you sure you want to delete this asset?")) {
       try {
         await axios.delete(`https://backend-pbmi.onrender.com/api/assets/${id}`);
-        setAssets(assets.filter((a) => a._id !== id));
+        const newAssets = assets.filter((a) => a._id !== id);
+        setAssets(newAssets);
+        setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
+        toast.success("Asset deleted successfully!");
       } catch (err) {
         console.error("Error deleting asset:", err);
-        setError("Failed to delete asset.");
+        toast.error("Failed to delete asset.");
       }
     }
   };
 
- const addInvestment = async (investment) => {
-  try {
-    const res = await axios.post("https://backend-pbmi.onrender.com/api/investments", {
-      ...investment,
-      userId,
-    });
-    setInvestments([...investments, res.data]);
-  } catch (err) {
-    console.error("Error adding investment:", err);
-    setError("Failed to add investment.");
-  }
-};
+  const addInvestment = async (investment) => {
+    try {
+      const res = await axios.post("https://backend-pbmi.onrender.com/api/investments", {
+        ...investment,
+        userId,
+      });
+      const newInvestments = [...investments, res.data];
+      setInvestments(newInvestments);
+      setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
+      toast.success("Investment added successfully!");
+    } catch (err) {
+      console.error("Error adding investment:", err);
+      toast.error("Failed to add investment.");
+    }
+  };
 
   const updateInvestment = async (id, updatedInvestment) => {
     try {
       const res = await axios.put(`https://backend-pbmi.onrender.com/api/investments/${id}`, updatedInvestment);
-      setInvestments(investments.map((i) => (i._id === id ? res.data : i)));
+      const newInvestments = investments.map((i) => (i._id === id ? res.data : i));
+      setInvestments(newInvestments);
+      setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
       setEditing({ type: null, data: null }); // Clear editing state after update
+      toast.success("Investment updated successfully!");
     } catch (err) {
       console.error("Error updating investment:", err);
-      setError("Failed to update investment.");
+      toast.error("Failed to update investment.");
     }
   };
 
@@ -134,10 +209,13 @@ useEffect(() => {
     if (window.confirm("Are you sure you want to delete this investment?")) {
       try {
         await axios.delete(`https://backend-pbmi.onrender.com/api/investments/${id}`);
-        setInvestments(investments.filter((i) => i._id !== id));
+        const newInvestments = investments.filter((i) => i._id !== id);
+        setInvestments(newInvestments);
+        setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
+        toast.success("Investment deleted successfully!");
       } catch (err) {
         console.error("Error deleting investment:", err);
-        setError("Failed to delete investment.");
+        toast.error("Failed to delete investment.");
       }
     }
   };
@@ -164,9 +242,9 @@ useEffect(() => {
     return `${percentage.toFixed(1)}%`;
   };
 
-  const totalAssetsValue = assets.reduce((sum, a) => sum + Number(a.value || 0), 0); // Handle potential undefined/null
-  const totalInvested = investments.reduce((sum, i) => sum + Number(i.investedAmount || 0), 0);
-  const totalInvestmentValue = investments.reduce((sum, i) => sum + Number(i.currentValue || 0), 0);
+  const totalAssetsValue = useMemo(() => assets.reduce((sum, a) => sum + Number(a.value || 0), 0), [assets]);
+  const totalInvested = useMemo(() => investments.reduce((sum, i) => sum + Number(i.investedAmount || 0), 0), [investments]);
+  const totalInvestmentValue = useMemo(() => investments.reduce((sum, i) => sum + Number(i.currentValue || 0), 0), [investments]);
 
   const groupedAssets = useMemo(() => {
     const groups = {};
@@ -208,7 +286,8 @@ useEffect(() => {
     }
   };
 
-  if (loading) {
+  // Only show the full loading spinner if no data (cached or fresh) is available yet
+  if (loading && assets.length === 0 && investments.length === 0) {
     return (
       <div className="loading-spinner">
         <FaSpinner className="spin" size={50} aria-label="Loading data..." />
@@ -217,11 +296,12 @@ useEffect(() => {
     );
   }
 
-  if (error) {
+  // If there's an error and no data is displayed
+  if (error && assets.length === 0 && investments.length === 0) {
     return (
       <div className="error-message alert alert-danger text-center" role="alert">
         {error}
-        <button className="btn btn-primary mt-3" onClick={fetchData}>Retry</button>
+        <button className="btn btn-primary mt-3" onClick={() => fetchData(false)}>Retry</button>
       </div>
     );
   }
@@ -451,7 +531,7 @@ useEffect(() => {
                               Invested: {formatCurrency(i.investedAmount)}
                             </p>
                             <p className={`investment-return ${isPositiveReturn ? "investment-return-positive" : "investment-return-negative"}`}
-                               aria-label={`Return: ${returnPercentage}`}
+                              aria-label={`Return: ${returnPercentage}`}
                             >
                               {returnPercentage}
                             </p>
@@ -503,31 +583,38 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
- const handleSubmit = (e) => {
-  e.preventDefault();
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
-  // Common validation
-  const isNegative = (val) => Number(val) < 0;
+    // Common validation
+    const isNegative = (val) => Number(val) < 0;
 
-  if (type === "asset") {
-    if (isNegative(form.value)) {
-      toast.error("Asset value cannot be negative.");
-      return;
+    if (type === "asset") {
+      if (!form.name || !form.type || form.value === "" || !form.nominee) {
+        toast.error("Please fill in all required fields for asset.");
+        return;
+      }
+      if (isNegative(form.value)) {
+        toast.error("Asset value cannot be negative.");
+        return;
+      }
+    } else if (type === "investment") {
+      if (!form.name || !form.type || form.investedAmount === "" || form.currentValue === "" || !form.nominee) {
+        toast.error("Please fill in all required fields for investment.");
+        return;
+      }
+      if (isNegative(form.investedAmount)) {
+        toast.error("Invested amount cannot be negative.");
+        return;
+      }
+      if (isNegative(form.currentValue)) {
+        toast.error("Current value cannot be negative.");
+        return;
+      }
     }
-  } else if (type === "investment") {
-    if (isNegative(form.investedAmount)) {
-      toast.error("Invested amount cannot be negative.");
-      return;
-    }
-    if (isNegative(form.currentValue)) {
-      toast.error("Current value cannot be negative.");
-      return;
-    }
-  }
 
-  onSubmit(form);
-};
-
+    onSubmit(form);
+  };
 
   const typeOptions = {
     asset: ["Real Estate", "Vehicle", "Luxury Items", "Other"],
@@ -536,151 +623,151 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
 
   return (
     <>
-    <form onSubmit={handleSubmit} aria-label={`${initial ? 'Edit' : 'Add New'} ${type === 'asset' ? 'Asset' : 'Investment'} Form`}>
-      <div className="mb-3">
-        <label htmlFor={`${type}-name`} className="form-label">
-          {type === "asset" ? "Asset Name" : "Investment Name"} <span className="text-danger">*</span>
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          id={`${type}-name`}
-          name="name"
-          value={form.name}
-          placeholder={type === "asset" ? "e.g., Primary Residence, Honda City" : "e.g., HDFC Equity Fund, TCS Shares"}
-          onChange={handleChange}
-          required
-          aria-required="true"
-        />
-      </div>
+      <form onSubmit={handleSubmit} aria-label={`${initial ? 'Edit' : 'Add New'} ${type === 'asset' ? 'Asset' : 'Investment'} Form`}>
+        <div className="mb-3">
+          <label htmlFor={`${type}-name`} className="form-label">
+            {type === "asset" ? "Asset Name" : "Investment Name"} <span className="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            className="form-control"
+            id={`${type}-name`}
+            name="name"
+            value={form.name}
+            placeholder={type === "asset" ? "e.g., Primary Residence, Honda City" : "e.g., HDFC Equity Fund, TCS Shares"}
+            onChange={handleChange}
+            required
+            aria-required="true"
+          />
+        </div>
 
-      <div className="mb-3">
-        <label htmlFor={`${type}-type`} className="form-label">Type <span className="text-danger">*</span></label>
-        <select
-          className="form-select"
-          id={`${type}-type`}
-          name="type"
-          value={form.type}
-          onChange={handleChange}
-          required
-          aria-required="true"
-        >
-          <option value="">Select Type</option>
-          {typeOptions[type].map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div className="mb-3">
+          <label htmlFor={`${type}-type`} className="form-label">Type <span className="text-danger">*</span></label>
+          <select
+            className="form-select"
+            id={`${type}-type`}
+            name="type"
+            value={form.type}
+            onChange={handleChange}
+            required
+            aria-required="true"
+          >
+            <option value="">Select Type</option>
+            {typeOptions[type].map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {type === "asset" ? (
-        <>
-          <div className="mb-3">
-            <label htmlFor="asset-value" className="form-label">Value (₹) <span className="text-danger">*</span></label>
-            <input
-              type="number"
-              className="form-control"
-              id="asset-value"
-              name="value"
-              value={form.value}
-              placeholder="0"
-              onChange={handleChange}
-              required
-              aria-required="true"
-            />
-          </div>
+        {type === "asset" ? (
+          <>
+            <div className="mb-3">
+              <label htmlFor="asset-value" className="form-label">Value (₹) <span className="text-danger">*</span></label>
+              <input
+                type="number"
+                className="form-control"
+                id="asset-value"
+                name="value"
+                value={form.value}
+                placeholder="0"
+                onChange={handleChange}
+                required
+                aria-required="true"
+              />
+            </div>
 
-          <div className="mb-3">
-            <label htmlFor="asset-location" className="form-label">Location</label>
-            <input
-              type="text"
-              className="form-control"
-              id="asset-location"
-              name="location"
-              value={form.location}
-              placeholder="City, State"
-              onChange={handleChange}
-            />
-          </div>
+            <div className="mb-3">
+              <label htmlFor="asset-location" className="form-label">Location</label>
+              <input
+                type="text"
+                className="form-control"
+                id="asset-location"
+                name="location"
+                value={form.location}
+                placeholder="City, State"
+                onChange={handleChange}
+              />
+            </div>
 
-          <div className="mb-3">
-            <label htmlFor="asset-description" className="form-label">Description</label>
-            <input
-              type="text"
-              className="form-control"
-              id="asset-description"
-              name="description"
-              value={form.description}
-              placeholder="Brief description (e.g., 3BHK Apartment, 2022 Model)"
-              onChange={handleChange}
-            />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mb-3">
-            <label htmlFor="investment-invested" className="form-label">Amount Invested (₹) <span className="text-danger">*</span></label>
-            <input
-              type="number"
-              className="form-control"
-              id="investment-invested"
-              name="investedAmount"
-              value={form.investedAmount}
-              placeholder="0"
-              onChange={handleChange}
-              required
-              aria-required="true"
-            />
-          </div>
+            <div className="mb-3">
+              <label htmlFor="asset-description" className="form-label">Description</label>
+              <input
+                type="text"
+                className="form-control"
+                id="asset-description"
+                name="description"
+                value={form.description}
+                placeholder="Brief description (e.g., 3BHK Apartment, 2022 Model)"
+                onChange={handleChange}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-3">
+              <label htmlFor="investment-invested" className="form-label">Amount Invested (₹) <span className="text-danger">*</span></label>
+              <input
+                type="number"
+                className="form-control"
+                id="investment-invested"
+                name="investedAmount"
+                value={form.investedAmount}
+                placeholder="0"
+                onChange={handleChange}
+                required
+                aria-required="true"
+              />
+            </div>
 
-          <div className="mb-3">
-            <label htmlFor="investment-current" className="form-label">Current Value (₹) <span className="text-danger">*</span></label>
-            <input
-              type="number"
-              className="form-control"
-              id="investment-current"
-              name="currentValue"
-              value={form.currentValue}
-              placeholder="0"
-              onChange={handleChange}
-              required
-              aria-required="true"
-            />
-          </div>
-        </>
-      )}
-
-      <div className="mb-3">
-        <label htmlFor={`${type}-nominee`} className="form-label">Nominee <span className="text-danger">*</span></label>
-        <input
-          type="text"
-          className="form-control"
-          id={`${type}-nominee`}
-          name="nominee"
-          value={form.nominee}
-          placeholder="e.g., Jane Doe, Alex Doe"
-          onChange={handleChange}
-          required
-          aria-required="true"
-        />
-      </div>
-
-      <div className="d-flex justify-content-between flex-wrap gap-2"> {/* flex-wrap and gap for mobile */}
-        <button type="submit" className="btn btn-primary flex-grow-1">
-          {initial ? <><FaRegSave className="me-2" aria-hidden="true" /> Update</> : <><FaPlusCircle className="me-2" aria-hidden="true" /> Add</>}{" "}
-          {type === "asset" ? "Asset" : "Investment"}
-        </button>
-        {initial && (
-          <button type="button" className="btn btn-outline-secondary flex-grow-1" onClick={onCancelEdit}>
-            Cancel Edit
-          </button>
+            <div className="mb-3">
+              <label htmlFor="investment-current" className="form-label">Current Value (₹) <span className="text-danger">*</span></label>
+              <input
+                type="number"
+                className="form-control"
+                id="investment-current"
+                name="currentValue"
+                value={form.currentValue}
+                placeholder="0"
+                onChange={handleChange}
+                required
+                aria-required="true"
+              />
+            </div>
+          </>
         )}
-      </div>
-    </form>
-  <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
-  </>
-);
+
+        <div className="mb-3">
+          <label htmlFor={`${type}-nominee`} className="form-label">Nominee <span className="text-danger">*</span></label>
+          <input
+            type="text"
+            className="form-control"
+            id={`${type}-nominee`}
+            name="nominee"
+            value={form.nominee}
+            placeholder="e.g., Jane Doe, Alex Doe"
+            onChange={handleChange}
+            required
+            aria-required="true"
+          />
+        </div>
+
+        <div className="d-flex justify-content-between flex-wrap gap-2">
+          <button type="submit" className="btn btn-primary flex-grow-1">
+            {initial ? <><FaRegSave className="me-2" aria-hidden="true" /> Update</> : <><FaPlusCircle className="me-2" aria-hidden="true" /> Add</>}{" "}
+            {type === "asset" ? "Asset" : "Investment"}
+          </button>
+          {initial && (
+            <button type="button" className="btn btn-outline-secondary flex-grow-1" onClick={onCancelEdit}>
+              Cancel Edit
+            </button>
+          )}
+        </div>
+      </form>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+    </>
+  );
 };
 
 export default WealthDashboard;
