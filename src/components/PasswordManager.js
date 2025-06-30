@@ -44,6 +44,18 @@ const categoryConfig = {
     'Personal': { icon: FaUserCircle, color: '#88e0e0' },
 };
 
+const commonDomains = [
+    'google.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'instagram.com',
+    'amazon.com', 'netflix.com', 'microsoft.com', 'apple.com', 'yahoo.com',
+    'outlook.com', 'gmail.com', 'protonmail.com', 'aol.com',
+    'paypal.com', 'bankofamerica.com', 'wellsfargo.com', 'chase.com', 'citibank.com',
+    'fidelity.com', 'vanguard.com', 'charles Schwab.com',
+    'github.com', 'gitlab.com', 'bitbucket.org', 'slack.com', 'zoom.us',
+    'office.com', 'adobe.com', 'dropbox.com', 'salesforce.com', 'trello.com',
+    'discord.com', 'reddit.com', 'pinterest.com', 'tumblr.com', 'tiktok.com',
+    // Add more common domains/websites as needed
+];
+
 const PasswordManager = () => {
     const [userId, setUserId] = useState(null);
     const [passwords, setPasswords] = useState([]);
@@ -307,6 +319,8 @@ const PasswordManager = () => {
         return 'e.g., google.com, www.example.com, https://mywebsite.com';
     };
 
+    const showDatalist = !freeFormWebsiteCategories.includes(selectedCategory);
+
     return (
         <div className="password-manager-container">
             <ToastContainer />
@@ -411,7 +425,7 @@ const PasswordManager = () => {
                             const isLinkableWebsite = entry.data.website && (
                                 entry.data.website.startsWith('http://') ||
                                 entry.data.website.startsWith('https://') ||
-                                // Simple heuristic: if it contains a dot and doesn't contain spaces, it might be a domain
+                                // Simple heuristic: if it contains a dot and doesn't contain spaces AND is NOT a free-form category, it might be a domain
                                 (entry.data.website.includes('.') && !entry.data.website.includes(' ') && !freeFormWebsiteCategories.includes(entry.blockName))
                             );
                             const displayWebsite = entry.data.website || 'Not Applicable';
@@ -495,7 +509,17 @@ const PasswordManager = () => {
                                 value={formData.website}
                                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                                 placeholder={getWebsitePlaceholder()}
+                                list={showDatalist ? 'common-domains' : undefined} // Add list attribute conditionally
                             />
+                            {/* Datalist for suggestions */}
+                            {showDatalist && (
+                                <datalist id="common-domains">
+                                    {commonDomains.map((domain, index) => (
+                                        <option key={index} value={domain} />
+                                    ))}
+                                </datalist>
+                            )}
+
                             {/* Add helper text for URL format */}
                             {!freeFormWebsiteCategories.includes(selectedCategory) && (
                                 <Form.Text className="text-muted">
