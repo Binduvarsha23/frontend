@@ -1,5 +1,5 @@
 // File: src/pages/PasswordManager.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import axios from 'axios';
 import {
     FaEdit,
@@ -59,6 +59,7 @@ const PasswordManager = () => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const formRef = useRef(null);
+    const addIconRef = useRef(null); // Ref for the Add (+) icon
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -106,29 +107,64 @@ const PasswordManager = () => {
         }
     }, [selectedCategory, editing]);
 
+    // Scroll to form when showForm becomes true
     useEffect(() => {
         if (showForm && formRef.current) {
             formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }, [showForm]);
 
+    // Scroll to add icon when category is selected and form is not shown
+    useEffect(() => {
+        if (selectedCategory !== 'All Passwords' && !showForm && addIconRef.current) {
+            addIconRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [selectedCategory, showForm]);
+
+    // Define freeFormWebsiteCategories using useMemo so it recomputes only when customBlocks change
+    const freeFormWebsiteCategories = useMemo(() => ([
+        'Banking',
+        'Investment',
+        'Email',
+        'Personal',
+        ...customBlocks
+    ]), [customBlocks]);
 
     const handleSave = async () => {
-        if (!formData.username || !formData.password || !formData.website || !formData.category || !userId) {
-            toast.error('Please fill all fields (Website, Username/Email, Password).');
+        // Basic fields check (username, password, category, userId are always required)
+        if (!formData.username.trim() || !formData.password.trim() || !formData.category.trim() || !userId) {
+            toast.error('Please fill all required fields (Username/Email, Password, Category).');
             return;
         }
 
-        const urlRegex = /^(https?:\/\/)?([\w\d]+\.)?[\w\d]+\.[\w\d]+(\/[\w\d-._~:/?#[\]@!$&'()*+,;=]*)?$/i;
-        if (!urlRegex.test(formData.website)) {
-            toast.error('Please enter a valid website URL (e.g., example.com, www.example.com).');
+        const websiteValue = formData.website.trim();
+
+        // Website field is now ALWAYS required
+        if (!websiteValue) {
+            toast.error('The Website/Bank Name/Address field is required for all categories.');
             return;
         }
+
+        // URL Regex for strict URL validation (for categories like Social Media, Work)
+        // This regex allows for domains like example.com, www.example.com, and full URLs with http/https
+        const urlRegex = /^(https?:\/\/)?([\w\d]+\.)?[\w\d]+\.[\w\d]+(\/[\w\d-._~:/?#[\]@!$&'()*+,;=]*)?$/i;
+
+
+        // Apply strict URL validation ONLY if the category is NOT in the freeFormWebsiteCategories list
+        if (!freeFormWebsiteCategories.includes(formData.category)) {
+            // This means it's a category like 'Social Media' or 'Work'
+            if (!urlRegex.test(websiteValue)) {
+                toast.error('For this category, please enter a valid website URL (e.g., example.com, www.example.com, https://example.com).');
+                return;
+            }
+        }
+        // If the category IS in freeFormWebsiteCategories, no URL validation is applied.
+        // The `websiteValue` is accepted as free-form text.
 
         const encrypted = encryptData({
             username: formData.username,
             password: formData.password,
-            website: formData.website,
+            website: websiteValue, // Store the trimmed value (URL or free-form text)
             updatedAt: new Date().toISOString(),
         });
 
@@ -140,6 +176,8 @@ const PasswordManager = () => {
 
         try {
             if (editing) {
+                // If editing, delete the old entry and then add the new one.
+                // This ensures that if the category was changed, it reflects correctly.
                 await axios.delete(`https://backend-pbmi.onrender.com/api/passwords/${editing._id}`);
             }
             await axios.post('https://backend-pbmi.onrender.com/api/passwords', payload);
@@ -149,6 +187,7 @@ const PasswordManager = () => {
             setEditing(null);
             setFormData({ username: '', password: '', website: '', category: '' });
         } catch (err) {
+            console.error("Error saving password:", err);
             toast.error('Failed to save');
         }
     };
@@ -177,7 +216,7 @@ const PasswordManager = () => {
             toast.error('Enter a block name');
             return;
         }
-        if (defaultCategories.includes(newBlockName) || customBlocks.includes(newBlockName)) {
+        if (defaultCategories.includes(newBlockName.trim()) || customBlocks.includes(newBlockName.trim())) {
             toast.error('Category already exists');
             return;
         }
@@ -247,9 +286,26 @@ const PasswordManager = () => {
         if (config) {
             return config.color;
         }
-        return '#cccccc';
+        // A default color for custom categories if not explicitly defined
+        // For production, you might want a more robust way to assign colors to custom categories
+        return '#808080'; // Grey color for uncategorized custom blocks
     };
 
+    // Determine the label for the website field
+    const getWebsiteLabel = () => {
+        if (freeFormWebsiteCategories.includes(selectedCategory)) {
+            return 'Website / Bank Name / Address (Required)';
+        }
+        return 'Website Name (Required)';
+    };
+
+    // Determine the placeholder for the website field
+    const getWebsitePlaceholder = () => {
+        if (freeFormWebsiteCategories.includes(selectedCategory)) {
+            return 'e.g., Tanuku HDFC Bank, Main St., My Email Server';
+        }
+        return 'e.g., google.com, www.example.com, https://mywebsite.com';
+    };
 
     return (
         <div className="password-manager-container">
@@ -293,7 +349,7 @@ const PasswordManager = () => {
                             className={`category-card ${selectedCategory === catName ? 'active' : ''}`}
                             onClick={() => {
                                 setSelectedCategory(catName);
-                                setShowForm(false);
+                                setShowForm(false); // Hide form when a new category is selected
                             }}
                             style={{ '--card-color': color }}
                         >
@@ -303,7 +359,7 @@ const PasswordManager = () => {
                             <h5>{catName}</h5>
                             <p className="category-count">{categoryCounts[catName] || 0}</p>
                             {customBlocks.includes(catName) && (
-                                <FaTrashAlt className="delete-block-icon" onClick={(e) => {
+                                <FaTrashAlt className="delete-block-icon" id="faDel" onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteCustomBlock(catName);
                                 }} />
@@ -324,10 +380,11 @@ const PasswordManager = () => {
                     <div className="list-header-left">
                         <h4>{selectedCategory}</h4>
                         {selectedCategory !== 'All Passwords' && (
-                            <FaPlusCircle className="add-icon" onClick={() => {
+                            <FaPlusCircle className="add-icon" ref={addIconRef} onClick={() => {
                                 setShowForm(true);
                                 setEditing(null);
                                 setFormData({ username: '', password: '', website: '', category: selectedCategory });
+                                // Scrolling to form is handled by useEffect when showForm changes
                             }} />
                         )}
                     </div>
@@ -350,6 +407,15 @@ const PasswordManager = () => {
                             const ItemIcon = getCategoryIcon(entry.blockName);
                             const itemColor = getCategoryColor(entry.blockName);
 
+                            // Determine if the displayed website value should be a link
+                            const isLinkableWebsite = entry.data.website && (
+                                entry.data.website.startsWith('http://') ||
+                                entry.data.website.startsWith('https://') ||
+                                // Simple heuristic: if it contains a dot and doesn't contain spaces, it might be a domain
+                                (entry.data.website.includes('.') && !entry.data.website.includes(' ') && !freeFormWebsiteCategories.includes(entry.blockName))
+                            );
+                            const displayWebsite = entry.data.website || 'Not Applicable';
+
                             return (
                                 <div key={entry._id} className="password-card-item">
                                     <div className="item-header">
@@ -358,7 +424,20 @@ const PasswordManager = () => {
                                                 <ItemIcon />
                                             </div>
                                             <div>
-                                                <strong>{entry.data.website}</strong>
+                                                <strong>
+                                                    {isLinkableWebsite ? (
+                                                        <a
+                                                            href={entry.data.website.startsWith('http') ? entry.data.website : `https://${entry.data.website}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="website-link"
+                                                        >
+                                                            {displayWebsite}
+                                                        </a>
+                                                    ) : (
+                                                        displayWebsite
+                                                    )}
+                                                </strong>
                                                 <span className="category-tag" style={{ backgroundColor: itemColor }}>{entry.blockName}</span>
                                             </div>
                                         </div>
@@ -372,9 +451,7 @@ const PasswordManager = () => {
                                                     category: entry.blockName
                                                 });
                                                 setShowForm(true);
-                                                if (formRef.current) {
-                                                    formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }
+                                                // Scrolling to form is handled by useEffect when showForm changes
                                             }}><FaEdit /></button>
                                             <button className="icon-btn delete-btn" onClick={() => handleDelete(entry._id)}><FaTrashAlt /></button>
                                         </div>
@@ -397,10 +474,7 @@ const PasswordManager = () => {
                                             )}
                                             <FaRegCopy className="copy-icon" onClick={() => handleCopyToClipboard(entry.data.password)} />
                                         </p>
-                                        <p>
-                                            <span className="detail-label">Website:</span>
-                                            <a href={`https://${entry.data.website}`} target="_blank" rel="noopener noreferrer" className="detail-value website-link">{entry.data.website}</a>
-                                        </p>
+                                        {/* The website line is already handled above within the strong tag */}
                                         <p className="last-updated">Last updated: {new Date(entry.data.updatedAt).toLocaleDateString()}</p>
                                     </div>
                                 </div>
@@ -412,11 +486,27 @@ const PasswordManager = () => {
 
             {showForm && (
                 <div className="password-form-container" ref={formRef}>
-                    <h3>{editing ? `Edit ${editing.data.website}` : `Add New Password in ${selectedCategory}`}</h3>
+                    <h3>{editing ? `Edit ${editing.data.website || 'Entry'}` : `Add New Password in ${selectedCategory}`}</h3>
                     <Form>
                         <Form.Group className="mb-3">
-                            <Form.Label>Website Name</Form.Label>
-                            <Form.Control type="text" value={formData.website} onChange={(e) => setFormData({ ...formData, website: e.target.value })} placeholder="e.g., Google" />
+                            <Form.Label>{getWebsiteLabel()}</Form.Label> {/* Dynamic label */}
+                            <Form.Control
+                                type="text"
+                                value={formData.website}
+                                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                                placeholder={getWebsitePlaceholder()}
+                            />
+                            {/* Add helper text for URL format */}
+                            {!freeFormWebsiteCategories.includes(selectedCategory) && (
+                                <Form.Text className="text-muted">
+                                    Please enter a valid URL, e.g., `example.com`, `www.example.com`, or `https://mywebsite.com`.
+                                </Form.Text>
+                            )}
+                            {freeFormWebsiteCategories.includes(selectedCategory) && (
+                                <Form.Text className="text-muted">
+                                    You can enter a website URL, bank name, or address.
+                                </Form.Text>
+                            )}
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Username/Email</Form.Label>
