@@ -20,6 +20,7 @@ import {
   getFieldPlaceholder,
 } from "./utils";
 import { encryptData, decryptData } from "./aesUtils";
+import { FaHeart } from "react-icons/fa";
 
 const BASE_URL = "https://backend-pbmi.onrender.com";
 
@@ -58,12 +59,10 @@ const BlockForm = () => {
     try {
       const res = await fetch(`${BASE_URL}/api/block-fields/${blockId}`);
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Failed to load block fields");
 
       const visibleFields = {};
       const init = {};
-
       for (const key in data) {
         const field = data[key];
         if (field.visible !== false) {
@@ -71,11 +70,9 @@ const BlockForm = () => {
           init[key] = "";
         }
       }
-
       setSelectedBlockFields(visibleFields);
       setFormData(init);
     } catch (err) {
-      console.error(err);
       toast.error("Failed to load block field metadata");
     } finally {
       setLoadingFields(false);
@@ -89,7 +86,6 @@ const BlockForm = () => {
       const data = await res.json();
       setSavedForms(data);
     } catch (err) {
-      console.error(err);
       toast.error("Error loading saved forms");
     } finally {
       setLoadingSavedForms(false);
@@ -110,7 +106,6 @@ const BlockForm = () => {
       if (!res.ok) throw new Error("Failed to delete");
       toast.success("Deleted successfully");
     } catch (err) {
-      console.error(err);
       toast.error("Delete failed");
       fetchSavedForms();
     }
@@ -156,10 +151,7 @@ const BlockForm = () => {
         }
       }
 
-      const isPasswordBlock = blockName.toLowerCase().includes("password");
-      const dataToSend = isPasswordBlock
-        ? { encrypted: encryptData(cleanedData) }
-        : cleanedData;
+      const dataToSend = { encrypted: encryptData(cleanedData) };
 
       if (editingFormId) {
         await fetch(`${BASE_URL}/api/saved-forms/${editingFormId}`, {
@@ -168,7 +160,6 @@ const BlockForm = () => {
       }
 
       const payload = { userId, blockId, blockName, data: dataToSend };
-
       const res = await fetch(`${BASE_URL}/api/save-form`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,10 +176,24 @@ const BlockForm = () => {
       setEditingFormId(null);
       fetchSavedForms();
     } catch (err) {
-      console.error(err);
       toast.error("Submit failed");
     } finally {
       setFormSubmitted(false);
+    }
+  };
+
+  const toggleFavorite = async (formId) => {
+    try {
+      setSavedForms((prev) =>
+        prev.map((form) =>
+          form._id === formId ? { ...form, favorite: !form.favorite } : form
+        )
+      );
+      await fetch(`${BASE_URL}/api/saved-forms/${formId}/favorite`, {
+        method: "PATCH",
+      });
+    } catch (err) {
+      toast.error("Failed to toggle favorite");
     }
   };
 
@@ -212,39 +217,15 @@ const BlockForm = () => {
                 </Form.Label>
                 {isYesNoField(key) ? (
                   <div>
-                    <Form.Check
-                      inline
-                      label="Yes"
-                      name={key}
-                      type="radio"
-                      value="Yes"
-                      checked={formData[key] === "Yes"}
-                      onChange={(e) => handleChange(e, key)}
-                      {...(field.required ? { required: true } : {})}
-                    />
-                    <Form.Check
-                      inline
-                      label="No"
-                      name={key}
-                      type="radio"
-                      value="No"
-                      checked={formData[key] === "No"}
-                      onChange={(e) => handleChange(e, key)}
-                      {...(field.required ? { required: true } : {})}
-                    />
+                    <Form.Check inline label="Yes" name={key} type="radio" value="Yes"
+                      checked={formData[key] === "Yes"} onChange={(e) => handleChange(e, key)} required={field.required} />
+                    <Form.Check inline label="No" name={key} type="radio" value="No"
+                      checked={formData[key] === "No"} onChange={(e) => handleChange(e, key)} required={field.required} />
                   </div>
                 ) : getInputType(key) === "file" ? (
-                  <Form.Control
-                    type="file"
-                    onChange={(e) => handleChange(e, key)}
-                    {...(field.required ? { required: true } : {})}
-                  />
+                  <Form.Control type="file" onChange={(e) => handleChange(e, key)} required={field.required} />
                 ) : key.toLowerCase().includes("gender") ? (
-                  <Form.Select
-                    value={formData[key]}
-                    onChange={(e) => handleChange(e, key)}
-                    {...(field.required ? { required: true } : {})}
-                  >
+                  <Form.Select value={formData[key]} onChange={(e) => handleChange(e, key)} required={field.required}>
                     <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -257,7 +238,7 @@ const BlockForm = () => {
                     onChange={(e) => handleChange(e, key)}
                     placeholder={getFieldPlaceholder(key)}
                     pattern={getFieldPattern(key)}
-                    {...(field.required ? { required: true } : {})}
+                    required={field.required}
                   />
                 )}
               </Form.Group>
@@ -277,33 +258,23 @@ const BlockForm = () => {
             <Table striped bordered hover responsive>
               <thead>
                 <tr>
-                  {Object.keys(
-                    savedForms[0].data?.encrypted
-                      ? decryptData(savedForms[0].data.encrypted)
-                      : savedForms[0].data
-                  ).map((key) => (
+                  {Object.keys(decryptData(savedForms[0].data.encrypted)).map((key) => (
                     <th key={key}>{key}</th>
                   ))}
+                  <th>Favorite</th>
                   <th>Edit</th>
                   <th>Delete</th>
                 </tr>
               </thead>
               <tbody>
                 {savedForms.map((form) => {
-                  const decryptedData = form.data?.encrypted
-                    ? decryptData(form.data.encrypted)
-                    : form.data;
+                  const decryptedData = decryptData(form.data.encrypted);
                   return (
                     <tr key={form._id}>
                       {Object.entries(decryptedData).map(([key, value]) => (
                         <td key={key} style={{ maxWidth: "150px", wordBreak: "break-word" }}>
                           {typeof value === "string" && value.startsWith("data:image") ? (
-                            <span
-                              style={{ color: "blue", cursor: "pointer" }}
-                              onClick={() => setModalImage(value)}
-                            >
-                              View Image
-                            </span>
+                            <span style={{ color: "blue", cursor: "pointer" }} onClick={() => setModalImage(value)}>View Image</span>
                           ) : typeof value === "string" && value.startsWith("data:") ? (
                             <span style={{ fontStyle: "italic" }}>File</span>
                           ) : (
@@ -312,14 +283,15 @@ const BlockForm = () => {
                         </td>
                       ))}
                       <td>
-                        <Button variant="warning" onClick={() => handleEdit(form)}>
-                          Edit
+                        <Button variant="link" onClick={() => toggleFavorite(form._id)} title="Toggle Favorite">
+                          <FaHeart className={form.favorite ? "text-danger" : "text-muted"} />
                         </Button>
                       </td>
                       <td>
-                        <Button variant="danger" onClick={() => handleDelete(form._id)}>
-                          Delete
-                        </Button>
+                        <Button variant="warning" onClick={() => handleEdit(form)}>Edit</Button>
+                      </td>
+                      <td>
+                        <Button variant="danger" onClick={() => handleDelete(form._id)}>Delete</Button>
                       </td>
                     </tr>
                   );
@@ -331,30 +303,18 @@ const BlockForm = () => {
       )}
 
       <Modal show={!!modalImage} onHide={() => setModalImage(null)} centered size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Image Preview</Modal.Title>
-        </Modal.Header>
+        <Modal.Header closeButton><Modal.Title>Image Preview</Modal.Title></Modal.Header>
         <Modal.Body className="text-center">
-          {modalImage && (
-            <img
-              src={modalImage}
-              alt="Full preview"
-              style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }}
-            />
-          )}
+          {modalImage && <img src={modalImage} alt="Full preview" style={{ width: "100%", maxHeight: "80vh", objectFit: "contain" }} />}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setModalImage(null)}>
-            Close
-          </Button>
+          <Button variant="secondary" onClick={() => setModalImage(null)}>Close</Button>
           <Button variant="primary" onClick={() => {
             const a = document.createElement("a");
             a.href = modalImage;
             a.download = "image.png";
             a.click();
-          }}>
-            Download
-          </Button>
+          }}>Download</Button>
         </Modal.Footer>
       </Modal>
     </Container>
