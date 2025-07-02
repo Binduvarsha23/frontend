@@ -15,7 +15,9 @@ import {
     FaEnvelope, // Email icon
     FaUsers, // Social Media icon
     FaBriefcase, // Work icon
-    FaUserCircle // Personal icon
+    FaUserCircle, // Personal icon
+    FaHeart,       // ❤️ Filled heart
+  FaRegHeart
 } from 'react-icons/fa';
 import { Modal, Button, Form } from 'react-bootstrap';
 import { ToastContainer, toast } from 'react-toastify';
@@ -105,6 +107,18 @@ const PasswordManager = () => {
             toast.error('Failed to fetch custom blocks');
         }
     };
+const toggleFavorite = async (id) => {
+  try {
+    const res = await axios.patch(`https://backend-pbmi.onrender.com/api/passwords/${id}/favorite`);
+    if (res.data.success) {
+      toast.success(res.data.favorite ? 'Marked as favorite' : 'Unmarked as favorite');
+      fetchPasswords(); // Refresh list
+    }
+  } catch (err) {
+    console.error('❌ Favorite toggle failed', err);
+    toast.error('Failed to toggle favorite');
+  }
+};
 
     useEffect(() => {
         if (userId) {
@@ -465,6 +479,14 @@ const PasswordManager = () => {
                                                 setShowForm(true);
                                                 // Scrolling to form is handled by useEffect when showForm changes
                                             }}><FaEdit /></button>
+                                            <button
+  className="icon-btn favorite-btn"
+  title={entry.favorite ? 'Unmark Favorite' : 'Mark as Favorite'}
+  onClick={() => toggleFavorite(entry._id)}
+>
+  {entry.favorite ? <FaHeart color="red" /> : <FaRegHeart />}
+</button>
+
                                             <button className="icon-btn delete-btn" onClick={() => handleDelete(entry._id)}><FaTrashAlt /></button>
                                         </div>
                                     </div>
