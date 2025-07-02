@@ -19,19 +19,28 @@ const Layout = ({ children }) => {
         />
       )}
 
-      <div style={{ marginLeft: showSidebar ? '260px' : '0', flex: 1 }}>
+      <div style={{ maarginLeft: showSidebar ? '260px' : '20px', flex: 1}}>
         {!showSidebar && (
           <Button
-            variant="link"
+            variant="light"
             onClick={() => setShowSidebar(true)}
-            className="m-2 position-fixed"
-            style={{ zIndex: 1100 , color:"black", paddingLeft:"10px"}}
+            className="position-fixed"
+            style={{
+              zIndex: 1100,
+              color: "black",
+              left: "10px",
+              top: "10px",
+              backgroundColor: "white",
+              borderRadius: "8px",
+              padding:'8px',
+              boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+            }}
           >
-            <List size={26} />
+            <List size={22} />
           </Button>
         )}
 
-        <div className="p-3">{children}</div>
+        <div className="p-3" style={{marginLeft:"30px"}}>{children}</div>
       </div>
     </div>
   );
