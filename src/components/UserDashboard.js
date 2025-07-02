@@ -200,17 +200,27 @@ const UserDashboard = () => {
                 </div>
               </div>
             ))}
-            {favorites.passwords.map((p) => (
-              <div key={p._id} className="col-md-4 mb-3">
-                <div className="card p-3 shadow-sm">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> Password</h6>
-                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("passwords", p._id)} />
-                  </div>
-                  <div className="text-muted">Category: {p.blockName}</div>
-                </div>
-              </div>
-            ))}
+            {favorites.passwords.map((p) => {
+  const decrypted = decryptData(p.data);
+  return (
+    <div key={p._id} className="col-md-4 mb-3">
+      <div className="card p-3 shadow-sm">
+        <div className="d-flex justify-content-between align-items-center">
+          <h6 className="text-danger"><FaHeart /> {decrypted.website || 'Password'}</h6>
+          <FaHeart
+            className="text-danger"
+            style={{ cursor: "pointer" }}
+            onClick={() => toggleFavorite("passwords", p._id)}
+          />
+        </div>
+        <div className="text-muted">Category: {p.blockName}</div>
+        <div><strong>Username:</strong> {decrypted.username}</div>
+        <div><strong>Password:</strong> {decrypted.password}</div>
+      </div>
+    </div>
+  );
+})}
+
             {favorites.forms.map((f) => {
               const decrypted = f.data?.encrypted ? decryptData(f.data.encrypted) : f.data || {};
               return (
