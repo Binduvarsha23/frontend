@@ -84,64 +84,55 @@ const Dashboard = () => {
         fetch("https://backend-pbmi.onrender.com/api/blocks"),
         getUserBlocks(userId),
       ]);
-
       const blockData = await blockRes.json();
       const allBlocks = [...blockData, ...customRes];
-
       setBlocks(blockData);
       setCustomBlocks(customRes);
       await set("blocks", blockData);
+      setBlockUploads({});
+      await set("blockUploads", {});
 
-      const uploadsMap = {};
-     const uploadsResults = await Promise.all(
-  allBlocks.map(async (block) => {
-    try {
-      const res = await fetch(
-        `https://backend-pbmi.onrender.com/api/saved-forms/${block._id}?userId=${userId}`
-      );
-      if (!res.ok) return { blockId: block._id, forms: [] };
-      const forms = await res.json();
-
-      return {
-        blockId: block._id,
-        forms: forms.map(({ _id, blockName, createdAt, data, favorite }) => {
-          const decrypted = data?.encrypted ? decryptData(data.encrypted) : data;
-          const entries = Object.entries(decrypted);
-          const previewImage = entries.find(
-            ([, val]) => typeof val === "string" && val.startsWith("data:image")
-          )?.[1];
-
-          return {
-            _id,
-            blockName,
-            createdAt,
-            previewImage,
-            entries: entries.slice(0, 3),
-            fullEntries: entries,
-            favorite, // include it!
-          };
-        }),
-      };
-    } catch {
-      return { blockId: block._id, forms: [] };
-    }
-  })
-);
-
-setBlockUploads(uploadsMap);
-await set("blockUploads", uploadsMap);
-
-
-      setBlockUploads(uploadsMap);
-      await set("blockUploads", uploadsMap);
+      for (const block of allBlocks) {
+        fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${block._id}?userId=${userId}`)
+          .then((res) => (res.ok ? res.json() : []))
+          .then((forms) => {
+            const processedForms = forms.map(({ _id, blockName, createdAt, data, favorite }) => {
+              const decrypted = data?.encrypted ? decryptData(data.encrypted) : data;
+              const entries = Object.entries(decrypted);
+              const previewImage = entries.find(
+                ([, val]) => typeof val === "string" && val.startsWith("data:image")
+              )?.[1];
+              return {
+                _id,
+                blockName,
+                createdAt,
+                previewImage,
+                entries: entries.slice(0, 3),
+                fullEntries: entries,
+                favorite,
+              };
+            });
+            setBlockUploads((prev) => {
+              const updated = { ...prev, [block._id]: processedForms };
+              set("blockUploads", updated);
+              return updated;
+            });
+          })
+          .catch(() => {
+            setBlockUploads((prev) => {
+              const updated = { ...prev, [block._id]: [] };
+              set("blockUploads", updated);
+              return updated;
+            });
+          });
+      }
     } catch (err) {
-      console.error("❌ Failed to fetch data:", err);
+      console.error("❌ Failed to fetch blocks/custom blocks:", err);
       toast.error("Failed to load data.");
     } finally {
       setLoading(false);
     }
   };
-
   const handleBlockClick = (block) => {
     const isCustom = block.userId !== undefined;
     const path = isCustom
