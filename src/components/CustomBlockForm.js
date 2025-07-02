@@ -1,11 +1,11 @@
-// File: src/pages/CustomBlockForm.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Form, Button, Container, Row, Col, Card, Spinner, Modal } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import { auth } from "../firebase";
 import "react-toastify/dist/ReactToastify.css";
-import { encryptData, decryptData } from "../components/aesUtils"; // 🔐 Make sure path is correct
+import { encryptData, decryptData } from "../components/aesUtils";
+import { FaHeart } from "react-icons/fa";
 
 const fieldTypes = ["text", "number", "email", "date", "file"];
 
@@ -23,9 +23,7 @@ const CustomBlockForm = () => {
   const [modalImage, setModalImage] = useState(null);
   const [editingFormId, setEditingFormId] = useState(null);
 
-  const addField = () => {
-    setFields([...fields, { name: "", type: "text" }]);
-  };
+  const addField = () => setFields([...fields, { name: "", type: "text" }]);
 
   const handleFieldChange = (index, key, value) => {
     const updated = [...fields];
@@ -53,7 +51,6 @@ const CustomBlockForm = () => {
       const data = await res.json();
       setSavedForms(data);
     } catch (err) {
-      console.error(err);
       toast.error("Error loading saved forms");
     } finally {
       setLoadingSavedForms(false);
@@ -61,9 +58,7 @@ const CustomBlockForm = () => {
   };
 
   useEffect(() => {
-    if (blockId && userId) {
-      fetchSavedForms();
-    }
+    if (blockId && userId) fetchSavedForms();
   }, [blockId, userId]);
 
   const handleSubmit = async (e) => {
@@ -85,7 +80,7 @@ const CustomBlockForm = () => {
         }
       }
 
-      const encryptedData = encryptData(rawData); // 🔐 encryption applied
+      const encryptedData = encryptData(rawData);
 
       if (editingFormId) {
         await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${editingFormId}`, {
@@ -97,15 +92,13 @@ const CustomBlockForm = () => {
         userId,
         blockId,
         blockName: state?.blockName || "CustomBlock",
-        data: { encrypted: encryptedData },
+        data: { encrypted: encryptedData }
       };
-
-      console.log("🔐 Encrypted payload to MongoDB:", payload);
 
       const res = await fetch("https://backend-pbmi.onrender.com/api/save-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
       const result = await res.json();
@@ -117,7 +110,6 @@ const CustomBlockForm = () => {
       setEditingFormId(null);
       fetchSavedForms();
     } catch (err) {
-      console.error(err);
       toast.error("Submission failed.");
     }
   };
@@ -147,10 +139,24 @@ const CustomBlockForm = () => {
         method: "DELETE"
       });
       toast.success("Deleted successfully");
-      fetchSavedForms();
+      setSavedForms((prev) => prev.filter((f) => f._id !== formId));
     } catch (err) {
-      console.error(err);
       toast.error("Delete failed");
+    }
+  };
+
+  const toggleFavorite = async (formId) => {
+    try {
+      setSavedForms((prev) =>
+        prev.map((form) =>
+          form._id === formId ? { ...form, favorite: !form.favorite } : form
+        )
+      );
+      await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${formId}/favorite`, {
+        method: "PATCH"
+      });
+    } catch (err) {
+      toast.error("Failed to toggle favorite");
     }
   };
 
@@ -192,13 +198,11 @@ const CustomBlockForm = () => {
                     <Form.Control
                       type="file"
                       accept="image/*,application/pdf"
-                      placeholder="Upload file"
                       onChange={(e) => handleInputChange(field.name, e.target.files[0])}
                     />
                   ) : (
                     <Form.Control
                       type={field.type}
-                      placeholder={`Enter ${field.name}`}
                       value={formValues[field.name] || ""}
                       onChange={(e) => handleInputChange(field.name, e.target.value)}
                     />
@@ -226,7 +230,23 @@ const CustomBlockForm = () => {
           const decrypted = form.data?.encrypted ? decryptData(form.data.encrypted) : form.data;
 
           return (
-            <Card key={form._id} className="mb-3">
+            <Card key={form._id} className="mb-3 position-relative">
+              <Button
+                variant="link"
+                onClick={() => toggleFavorite(form._id)}
+                style={{
+                  position: "absolute",
+                  top: "10px",
+                  right: "10px",
+                  zIndex: 10
+                }}
+              >
+                <FaHeart
+                  className={form.favorite ? "text-danger" : "text-muted"}
+                  size={20}
+                />
+              </Button>
+
               <Card.Body>
                 <h5>{form.blockName}</h5>
                 <p className="text-muted">Submitted on: {new Date(form.createdAt).toLocaleString()}</p>
