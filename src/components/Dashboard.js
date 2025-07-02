@@ -13,6 +13,7 @@ import {
   Modal,
   Form,
 } from "react-bootstrap";
+import { FaHeart } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { renderFilePreview } from "./utils";
@@ -25,8 +26,7 @@ import {
 import { useInView } from "react-intersection-observer";
 import { get, set } from "idb-keyval";
 import "./Dashboard.css";
-import VaultUnlock from "./VaultUnlock";
-import { getSecurityConfig } from "../api/securityApi";
+
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -43,20 +43,6 @@ const Dashboard = () => {
   const [userId, setUserId] = useState(null);
   const [unlocked, setUnlocked] = useState(false);
   const [checking, setChecking] = useState(true);
-  useEffect(() => {
-    const check = async () => {
-      const userId = auth.currentUser?.uid;
-      const config = await getSecurityConfig(userId);
-      const isLocked =
-        config?.pinEnabled ||
-        config?.passwordEnabled ||
-        config?.patternEnabled ||
-        config?.fingerprintEnabled;
-      if (!isLocked) setUnlocked(true);
-      setChecking(false);
-    };
-    check();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -107,19 +93,24 @@ const Dashboard = () => {
       await set("blocks", blockData);
 
       const uploadsMap = {};
-      for (const block of allBlocks) {
-        const res = await fetch(
-          `https://backend-pbmi.onrender.com/api/saved-forms/${block._id}?userId=${userId}`
-        );
-        if (!res.ok) continue;
-        const forms = await res.json();
+     const uploadsResults = await Promise.all(
+  allBlocks.map(async (block) => {
+    try {
+      const res = await fetch(
+        `https://backend-pbmi.onrender.com/api/saved-forms/${block._id}?userId=${userId}`
+      );
+      if (!res.ok) return { blockId: block._id, forms: [] };
+      const forms = await res.json();
 
-        uploadsMap[block._id] = forms.map(({ _id, blockName, createdAt, data }) => {
+      return {
+        blockId: block._id,
+        forms: forms.map(({ _id, blockName, createdAt, data, favorite }) => {
           const decrypted = data?.encrypted ? decryptData(data.encrypted) : data;
           const entries = Object.entries(decrypted);
           const previewImage = entries.find(
             ([, val]) => typeof val === "string" && val.startsWith("data:image")
           )?.[1];
+
           return {
             _id,
             blockName,
@@ -127,9 +118,19 @@ const Dashboard = () => {
             previewImage,
             entries: entries.slice(0, 3),
             fullEntries: entries,
+            favorite, // include it!
           };
-        });
-      }
+        }),
+      };
+    } catch {
+      return { blockId: block._id, forms: [] };
+    }
+  })
+);
+
+setBlockUploads(uploadsMap);
+await set("blockUploads", uploadsMap);
+
 
       setBlockUploads(uploadsMap);
       await set("blockUploads", uploadsMap);
@@ -226,55 +227,50 @@ const Dashboard = () => {
       toast.error("Failed to delete block");
     }
   };
-  useEffect(() => {
-    const check = async () => {
-      const userId = auth.currentUser?.uid;
-      if (!userId) return setChecking(false);
+  
+ const toggleFavorite = async (formId, blockId) => {
+  // Immediate UI update (optimistic)
+  const updated = { ...blockUploads };
+  updated[blockId] = updated[blockId].map((form) =>
+    form._id === formId ? { ...form, favorite: !form.favorite } : form
+  );
+  setBlockUploads(updated);
+  await set("blockUploads", updated); // update cache instantly
 
-      try {
-        const config = await getSecurityConfig(userId);
-        const isLocked =
-          config?.pinEnabled ||
-          config?.passwordEnabled ||
-          config?.patternEnabled ||
-          config?.fingerprintEnabled;
+  try {
+    // Fire and forget to backend
+    await fetch(`https://backend-pbmi.onrender.com/api/saved-forms/${formId}/favorite`, {
+      method: "PATCH",
+    });
+  } catch (err) {
+    toast.error("Failed to sync favorite status to backend");
+  }
+};
 
-        if (!isLocked) setUnlocked(true);
-      } catch (err) {
-        console.error("🔐 Failed to fetch security config:", err);
-        setUnlocked(true); // allow fallback access
-      } finally {
-        setChecking(false);
-      }
-    };
 
-    check();
-  }, []);
-  if (checking) return <div>Loading...</div>;
-  if (!unlocked) return <VaultUnlock onUnlock={() => setUnlocked(true)} />;
+
   return (
     <Container className="py-4">
       <ToastContainer />
- <div className="d-flex justify-content-between align-items-start flex-wrap mb-4">
-  <div>
-    <h2 style={{
-      fontSize: "1.75rem",
-      fontWeight: "600",
-      fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
-      color: "#343a40",
-      letterSpacing: "0.5px",
-      marginBottom: "0"
-    }}>
-      Your Document Blocks
-    </h2>
-    <small className="text-muted">Manage and access your digital documents</small>
-  </div>
-  <div className="mt-2">
-    <Button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
-      + Create Custom Block
-    </Button>
-  </div>
-</div>  
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 style={{
+          fontSize: "1.75rem",
+          fontWeight: "600",
+          fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
+          color: "#343a40",
+          letterSpacing: "0.5px",
+          marginBottom: "0"
+        }}>
+          Your Document Blocks
+        </h2>
+        <small className="text-muted">Manage and access your digital documents</small>
+
+        <div>
+          <Button onClick={() => setShowCreateModal(true)} className="me-2">
+            + Create Custom Block
+          </Button>
+        </div>
+      </div>
 
       {loading ? (
         <Spinner animation="border" />
@@ -393,20 +389,35 @@ const Dashboard = () => {
                           })}
                         </div>
                         <div className="d-flex justify-content-between align-items-center mt-2">
-                          <Button
-                            variant="link"
-                            className="p-0"
-                            title="View"
-                            onClick={() =>
-                              setModalData({
-                                blockName: form.blockName,
-                                entries: form.fullEntries,
-                                createdAt: form.createdAt,
-                              })
-                            }
-                          >
-                            <i className="fas fa-eye text-dark" style={{ fontSize: "1.2rem" }}></i>
-                          </Button>
+                          <div className="d-flex justify-content-between align-items-center mt-2">
+                            <Button
+                              variant="link"
+                              className="p-0"
+                              title="View"
+                              onClick={() =>
+                                setModalData({
+                                  blockName: form.blockName,
+                                  entries: form.fullEntries,
+                                  createdAt: form.createdAt,
+                                })
+                              }
+                            >
+                              <i className="fas fa-eye text-dark" style={{ fontSize: "1.2rem" }}></i>
+                            </Button>
+
+                            <Button
+                              variant="link"
+                              className="p-0"
+                              title={form.favorite ? "Unfavorite" : "Favorite"}
+                              onClick={() => toggleFavorite(form._id, blockId)}
+                            >
+                              <i
+                                className={`fas fa-heart ${form.favorite ? "text-danger" : "text-muted"}`}
+                                style={{ fontSize: "1.2rem" }}
+                              ></i>
+                            </Button>
+                          </div>
+
                           <Button
                             variant="link"
                             className="p-0"
