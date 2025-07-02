@@ -21,6 +21,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import "./WealthDashboard.css"; // Import the new CSS file
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { FaHeart, FaRegHeart } from 'react-icons/fa';
 
 // Helper functions for localStorage caching
 const getCachedData = (key) => {
@@ -49,7 +50,9 @@ const WealthDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
   const [error, setError] = useState(null);
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // To differentiate initial cache load from background fetch
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [nominees, setNominees] = useState([]); // This will store ALL nominee records
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -57,9 +60,9 @@ const WealthDashboard = () => {
         setUserId(user.uid);
       } else {
         setUserId(null);
-        // Clear data and cache if user logs out
         setAssets([]);
         setInvestments([]);
+        setNominees([]);
         localStorage.removeItem('cachedAssets');
         localStorage.removeItem('cachedInvestments');
       }
@@ -69,47 +72,61 @@ const WealthDashboard = () => {
 
   const fetchData = useCallback(async (isBackgroundFetch = false) => {
     if (!userId) {
-      if (isInitialLoad) setLoading(false); // If no user, no data to load, stop spinner
+      if (isInitialLoad) setLoading(false);
       return;
     }
 
     if (!isBackgroundFetch) {
-      // On initial load, try to load from cache first
       const cachedAssets = getCachedData(`cachedAssets_${userId}`);
       const cachedInvestments = getCachedData(`cachedInvestments_${userId}`);
-
       if (cachedAssets || cachedInvestments) {
         if (cachedAssets) setAssets(cachedAssets);
         if (cachedInvestments) setInvestments(cachedInvestments);
-        setLoading(false); // Hide spinner immediately if cached data is found
-        setIsInitialLoad(false); // Mark initial load as complete
+        setLoading(false);
+        setIsInitialLoad(false);
       } else {
-        setLoading(true); // Show spinner if no cached data
+        setLoading(true);
       }
     }
 
-    setError(null); // Clear previous errors
+    setError(null);
     try {
-      const [assetsRes, investmentsRes] = await Promise.all([
+      const [assetsRes, investmentsRes, familyRes, nomineesRes] = await Promise.all([
         axios.get(`https://backend-pbmi.onrender.com/api/assets?userId=${userId}`),
         axios.get(`https://backend-pbmi.onrender.com/api/investments?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/family?userId=${userId}`), // Assuming family members from localhost
+        axios.get(`https://backend-pbmi.onrender.com/api/nominees?userId=${userId}`), // Fetch ALL nominees
       ]);
 
-      setAssets(assetsRes.data);
-      setInvestments(investmentsRes.data);
+      const fetchedAssets = assetsRes.data;
+      const fetchedInvestments = investmentsRes.data;
+      const fetchedNominees = nomineesRes.data;
 
-      // Update cache
-      setCachedData(`cachedAssets_${userId}`, assetsRes.data);
-      setCachedData(`cachedInvestments_${userId}`, investmentsRes.data);
+      // Attach nominees to their respective assets/investments
+      const assetsWithNominees = fetchedAssets.map(asset => ({
+        ...asset,
+        nominees: fetchedNominees.filter(n => n.itemId === asset._id && n.type === 'asset')
+      }));
+
+      const investmentsWithNominees = fetchedInvestments.map(investment => ({
+        ...investment,
+        nominees: fetchedNominees.filter(n => n.itemId === investment._id && n.type === 'investment')
+      }));
+
+      setAssets(assetsWithNominees);
+      setInvestments(investmentsWithNominees);
+      setFamilyMembers(familyRes.data);
+      setNominees(fetchedNominees); // Keep all raw nominees in state too for easier access
+
+      setCachedData(`cachedAssets_${userId}`, assetsWithNominees);
+      setCachedData(`cachedInvestments_${userId}`, investmentsWithNominees);
 
       if (isBackgroundFetch) {
         toast.success("Data updated in the background!", { autoClose: 1500 });
       }
-
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to load data. Please try again later.");
-      // If error occurs and no cached data was displayed, ensure loading state is cleared.
       if (!getCachedData(`cachedAssets_${userId}`) && !getCachedData(`cachedInvestments_${userId}`)) {
         setLoading(false);
       }
@@ -123,40 +140,132 @@ const WealthDashboard = () => {
 
   useEffect(() => {
     if (userId) {
-      fetchData(); // Initial fetch (tries cache first, then network)
-      // Optional: Set up a periodic refresh for more real-time updates
-      // const interval = setInterval(() => fetchData(true), 60000); // Refresh every 60 seconds
-      // return () => clearInterval(interval);
+      fetchData();
     }
   }, [userId, fetchData]);
 
-  const addAsset = async (asset) => {
+
+  const saveNominees = async (itemType, itemId, currentNominees) => {
+    const hasAnyNomineeData = currentNominees.some(n => n.name || n.percentage > 0);
+    const totalPercentage = currentNominees.reduce((sum, n) => sum + (Number(n.percentage) || 0), 0);
+
+    // Only validation, no toast
+    if (hasAnyNomineeData && totalPercentage > 100) {
+      throw new Error("Nominee percentage exceeds 100%");
+    }
+
+    const validNomineesToSave = currentNominees.filter(n =>
+      n.name && n.nomineeId && n.percentage >= 0
+    );
+
+    // Delete old nominees first
+    const existingNomineesForItem = nominees.filter(n => n.itemId === itemId && n.type === itemType);
+    await Promise.all(existingNomineesForItem.map(async (n) => {
+      try {
+        await axios.delete(`https://backend-pbmi.onrender.com/api/nominees/${n._id}`);
+      } catch (delErr) {
+        console.error(`Failed to delete nominee ${n._id}:`, delErr);
+      }
+    }));
+
+    // Add new nominees
+    await Promise.all(validNomineesToSave.map(async (nominee) => {
+      try {
+        await axios.post("https://backend-pbmi.onrender.com/api/nominees", {
+          userId,
+          type: itemType,
+          itemId,
+          percentage: nominee.percentage,
+          nomineeId: nominee.nomineeId,
+          nomineeName: nominee.name,
+        });
+      } catch (addErr) {
+        console.error(`Failed to add nominee for ${itemType} ${itemId}:`, addErr);
+        throw addErr;
+      }
+    }));
+  };
+
+
+  const addAsset = async (assetData) => {
+    const { nominees: assetNominees, ...restOfAssetData } = assetData;
+
     try {
-      const res = await axios.post("https://backend-pbmi.onrender.com/api/assets", {
-        ...asset,
-        userId,
+      const formData = new FormData();
+      for (const key in restOfAssetData) {
+        if (key === 'imageFile' && restOfAssetData[key]) {
+          formData.append('image', restOfAssetData[key]);
+        } else if (key !== 'imageUrl') {
+          formData.append(key, restOfAssetData[key]);
+        }
+      }
+      formData.append('userId', userId);
+
+      const res = await axios.post("https://backend-pbmi.onrender.com/api/assets", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const newAssets = [...assets, res.data];
-      setAssets(newAssets);
-      setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
+
+      const newAsset = res.data;
+
+      const totalPercentage = assetNominees.reduce((sum, n) => sum + (Number(n.percentage) || 0), 0);
+      const hasAnyNominee = assetNominees.some(n => n.name || n.percentage > 0);
+
+      // ✅ Only one warning toast here
+      if (hasAnyNominee && totalPercentage < 100 && totalPercentage > 0) {
+        toast.warn(`Total nominee percentage is ${totalPercentage}%. You can allocate the remaining percentage later.`);
+      }
+
+      await saveNominees('asset', newAsset._id, assetNominees);
+
+      setEditing({ type: null, data: null });
       toast.success("Asset added successfully!");
+      fetchData(false);
     } catch (err) {
-      console.error("Error adding asset:", err);
-      toast.error("Failed to add asset.");
+      if (err.response?.status === 409) {
+        const { name, type } = assetData;
+        const existing = assets.find(a => a.name === name && a.type === type);
+        if (existing) {
+          setEditing({ type: "asset", data: existing });
+          toast.error(err.response.data.error);
+        }
+      } else {
+        console.error("Error adding asset:", err);
+        toast.error("Failed to add asset.");
+      }
     }
   };
 
-  const updateAsset = async (id, updatedAsset) => {
+
+  const updateAsset = async (id, updatedAssetData) => {
+    const { nominees: assetNominees, ...restOfAssetData } = updatedAssetData; // Separate nominees
     try {
-      const res = await axios.put(`https://backend-pbmi.onrender.com/api/assets/${id}`, updatedAsset);
-      const newAssets = assets.map((a) => (a._id === id ? res.data : a));
-      setAssets(newAssets);
-      setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
-      setEditing({ type: null, data: null }); // Clear editing state after update
+      const formData = new FormData();
+      for (const key in restOfAssetData) {
+        if (key === 'imageFile' && restOfAssetData[key]) {
+          formData.append('image', restOfAssetData[key]);
+        } else if (key === 'imageUrl' && restOfAssetData[key] === null) {
+          formData.append(key, '');
+        } else if (key !== 'imageFile') {
+          formData.append(key, restOfAssetData[key]);
+        }
+      }
+      formData.append('userId', userId);
+
+      const res = await axios.put(`https://backend-pbmi.onrender.com/api/assets/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const updatedAsset = res.data;
+
+      await saveNominees('asset', updatedAsset._id, assetNominees); // Update nominees
+
+      setEditing({ type: null, data: null });
       toast.success("Asset updated successfully!");
+      fetchData(false); // Re-fetch all data to update dashboard
     } catch (err) {
       console.error("Error updating asset:", err);
-      toast.error("Failed to update asset.");
+      toast.error("Failed to update asset or its nominees.");
     }
   };
 
@@ -164,10 +273,18 @@ const WealthDashboard = () => {
     if (window.confirm("Are you sure you want to delete this asset?")) {
       try {
         await axios.delete(`https://backend-pbmi.onrender.com/api/assets/${id}`);
-        const newAssets = assets.filter((a) => a._id !== id);
-        setAssets(newAssets);
-        setCachedData(`cachedAssets_${userId}`, newAssets); // Update cache
-        toast.success("Asset deleted successfully!");
+        // Also delete associated nominees
+        const nomineesToDelete = nominees.filter(n => n.itemId === id && n.type === 'asset');
+        await Promise.all(nomineesToDelete.map(async (n) => {
+          try {
+            await axios.delete(`https://backend-pbmi.onrender.com/api/nominees/${n._id}`);
+          } catch (delErr) {
+            console.error(`Failed to delete nominee ${n._id} during asset deletion:`, delErr);
+          }
+        }));
+
+        toast.success("Asset and associated nominees deleted successfully!");
+        fetchData(false); // Re-fetch all data to update dashboard
       } catch (err) {
         console.error("Error deleting asset:", err);
         toast.error("Failed to delete asset.");
@@ -175,33 +292,40 @@ const WealthDashboard = () => {
     }
   };
 
-  const addInvestment = async (investment) => {
+  const addInvestment = async (investmentData) => {
+    const { nominees: investmentNominees, ...restOfInvestmentData } = investmentData; // Separate nominees
     try {
       const res = await axios.post("https://backend-pbmi.onrender.com/api/investments", {
-        ...investment,
+        ...restOfInvestmentData,
         userId,
       });
-      const newInvestments = [...investments, res.data];
-      setInvestments(newInvestments);
-      setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
+      const newInvestment = res.data;
+
+      await saveNominees('investment', newInvestment._id, investmentNominees); // Save nominees
+
+      setEditing({ type: null, data: null });
       toast.success("Investment added successfully!");
+      fetchData(false);
     } catch (err) {
       console.error("Error adding investment:", err);
-      toast.error("Failed to add investment.");
+      toast.error("Failed to add investment or its nominees.");
     }
   };
 
-  const updateInvestment = async (id, updatedInvestment) => {
+  const updateInvestment = async (id, updatedInvestmentData) => {
+    const { nominees: investmentNominees, ...restOfInvestmentData } = updatedInvestmentData; // Separate nominees
     try {
-      const res = await axios.put(`https://backend-pbmi.onrender.com/api/investments/${id}`, updatedInvestment);
-      const newInvestments = investments.map((i) => (i._id === id ? res.data : i));
-      setInvestments(newInvestments);
-      setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
-      setEditing({ type: null, data: null }); // Clear editing state after update
+      const res = await axios.put(`https://backend-pbmi.onrender.com/api/investments/${id}`, restOfInvestmentData);
+      const updatedInvestment = res.data;
+
+      await saveNominees('investment', updatedInvestment._id, investmentNominees); // Update nominees
+
+      setEditing({ type: null, data: null });
       toast.success("Investment updated successfully!");
+      fetchData(false);
     } catch (err) {
       console.error("Error updating investment:", err);
-      toast.error("Failed to update investment.");
+      toast.error("Failed to update investment or its nominees.");
     }
   };
 
@@ -209,16 +333,24 @@ const WealthDashboard = () => {
     if (window.confirm("Are you sure you want to delete this investment?")) {
       try {
         await axios.delete(`https://backend-pbmi.onrender.com/api/investments/${id}`);
-        const newInvestments = investments.filter((i) => i._id !== id);
-        setInvestments(newInvestments);
-        setCachedData(`cachedInvestments_${userId}`, newInvestments); // Update cache
-        toast.success("Investment deleted successfully!");
+        // Also delete associated nominees
+        const nomineesToDelete = nominees.filter(n => n.itemId === id && n.type === 'investment');
+        await Promise.all(nomineesToDelete.map(async (n) => {
+          try {
+            await axios.delete(`https://backend-pbmi.onrender.com/api/nominees/${n._id}`);
+          } catch (delErr) {
+            console.error(`Failed to delete nominee ${n._id} during investment deletion:`, delErr);
+          }
+        }));
+        toast.success("Investment and associated nominees deleted successfully!");
+        fetchData(false);
       } catch (err) {
         console.error("Error deleting investment:", err);
         toast.error("Failed to delete investment.");
       }
     }
   };
+
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("en-IN", {
@@ -242,6 +374,7 @@ const WealthDashboard = () => {
     return `${percentage.toFixed(1)}%`;
   };
 
+  // Memoized values will now correctly reflect nominees fetched and attached
   const totalAssetsValue = useMemo(() => assets.reduce((sum, a) => sum + Number(a.value || 0), 0), [assets]);
   const totalInvested = useMemo(() => investments.reduce((sum, i) => sum + Number(i.investedAmount || 0), 0), [investments]);
   const totalInvestmentValue = useMemo(() => investments.reduce((sum, i) => sum + Number(i.currentValue || 0), 0), [investments]);
@@ -249,7 +382,7 @@ const WealthDashboard = () => {
   const groupedAssets = useMemo(() => {
     const groups = {};
     assets.forEach((asset) => {
-      const type = asset.type || 'Other'; // Default to 'Other' if type is missing
+      const type = asset.type || 'Other';
       if (!groups[type]) {
         groups[type] = [];
       }
@@ -286,7 +419,6 @@ const WealthDashboard = () => {
     }
   };
 
-  // Only show the full loading spinner if no data (cached or fresh) is available yet
   if (loading && assets.length === 0 && investments.length === 0) {
     return (
       <div className="loading-spinner">
@@ -296,7 +428,6 @@ const WealthDashboard = () => {
     );
   }
 
-  // If there's an error and no data is displayed
   if (error && assets.length === 0 && investments.length === 0) {
     return (
       <div className="error-message alert alert-danger text-center" role="alert">
@@ -306,13 +437,38 @@ const WealthDashboard = () => {
     );
   }
 
+  const toggleFavorite = (id, type) => {
+  const updateState = (setFn, list) => {
+    setFn(list.map((item) =>
+      item._id === id ? { ...item, favorite: !item.favorite } : item
+    ));
+  };
+
+  if (type === 'asset') updateState(setAssets, assets);
+  if (type === 'investment') updateState(setInvestments, investments);
+
+  axios
+    .patch(`https://backend-pbmi.onrender.com/api/${type}s/${id}/favorite`)
+    .then(() => {
+      toast.success(`${type} favorite updated`);
+    })
+    .catch((err) => {
+      toast.error(`Failed to update favorite for ${type}`);
+      console.error("Favorite toggle error:", err);
+
+      // Revert on failure
+      if (type === 'asset') updateState(setAssets, assets);
+      if (type === 'investment') updateState(setInvestments, investments);
+    });
+};
+  
+
   return (
     <div className="container py-4 wealth-dashboard-container">
       <h2 className="mb-4 text-center section-title">
         <FaChartLine className="title-icon" aria-hidden="true" /> Wealth Overview
       </h2>
 
-      {/* Summary Cards */}
       <div className="row text-center g-3 mb-5 summary-cards">
         <div className="col-6 col-md-3">
           <div className="summary-card bg-info">
@@ -343,7 +499,6 @@ const WealthDashboard = () => {
         </div>
       </div>
 
-      {/* Tabs for Assets and Investments */}
       <div className="mb-4 d-flex justify-content-center tab-buttons" role="tablist">
         <button
           className={`btn ${activeTab === "assets" ? "btn-dark" : "btn-outline-dark"}`}
@@ -367,11 +522,7 @@ const WealthDashboard = () => {
         </button>
       </div>
 
-      {/* Asset Management Section */}
-      <div
-        className="tab-content"
-        id="wealth-dashboard-tab-content"
-      >
+      <div className="tab-content" id="wealth-dashboard-tab-content">
         {activeTab === "assets" && (
           <div
             className="tab-pane fade show active"
@@ -391,6 +542,8 @@ const WealthDashboard = () => {
                     onSubmit={editing.type === "asset" ? (data) => updateAsset(editing.data._id, data) : addAsset}
                     initial={editing.type === "asset" ? editing.data : null}
                     onCancelEdit={() => setEditing({ type: null, data: null })}
+                    familyMembers={familyMembers}
+                    nominees={nominees} // Still pass all nominees for potential lookup if needed
                   />
                 </div>
               </div>
@@ -418,10 +571,16 @@ const WealthDashboard = () => {
                           </span>
                         </div>
                         {items.map((a) => (
-                          <div key={a._id} className="asset-item" tabIndex="0"> {/* Make items focusable */}
+                          <div key={a._id} className="asset-item" tabIndex="0">
                             <div className="asset-details">
                               <h4>{a.name}</h4>
                               {a.description && <p className="asset-type">{a.description}</p>}
+                              {/* Display image if imageUrl exists */}
+                              {a.imageUrl && (
+                                <div className="asset-image-container mb-2">
+                                  <img src={a.imageUrl} alt={a.name} className="img-fluid rounded" style={{ maxWidth: '100%', height: 'auto' }} />
+                                </div>
+                              )}
                               {a.location && (
                                 <p className="asset-location">
                                   <FaLocationDot aria-hidden="true" /> {a.location}{" "}
@@ -430,15 +589,30 @@ const WealthDashboard = () => {
                                   </a>
                                 </p>
                               )}
-                              <p className="asset-nominee">
-                                <FaUser aria-hidden="true" /> Nominee: {a.nominee}
-                              </p>
+                              {a.nominees && a.nominees.length > 0 && (
+                                <div className="nominee-list">
+                                  <h6>Nominees:</h6>
+                                  {a.nominees.map((n) => (
+                                    <p key={n._id} className="asset-nominee">
+                                      <FaUser aria-hidden="true" /> {n.nomineeName} ({n.percentage}%)
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="asset-value-wrapper">
                               <span className="asset-value" aria-label={`Value: ${formatCurrency(a.value)}`}>
                                 {formatCurrency(a.value)}
                               </span>
                               <div className="action-buttons">
+                                <button
+                                  className="btn btn-sm btn-outline-danger action-btn"
+                                  onClick={() => toggleFavorite(a._id, 'asset')}
+                                  title={a.favorite ? "Unmark Favorite" : "Mark Favorite"}
+                                  aria-label={a.favorite ? `Unmark ${a.name} as favorite` : `Mark ${a.name} as favorite`}
+                                >
+                                  {a.favorite ? <FaHeart /> : <FaRegHeart />}
+                                </button>
                                 <button
                                   className="btn btn-sm btn-outline-primary action-btn"
                                   onClick={() => setEditing({ type: "asset", data: a })}
@@ -468,7 +642,6 @@ const WealthDashboard = () => {
           </div>
         )}
 
-        {/* Investment Management Section */}
         {activeTab === "investments" && (
           <div
             className="tab-pane fade show active"
@@ -488,6 +661,8 @@ const WealthDashboard = () => {
                     onSubmit={editing.type === "investment" ? (data) => updateInvestment(editing.data._id, data) : addInvestment}
                     initial={editing.type === "investment" ? editing.data : null}
                     onCancelEdit={() => setEditing({ type: null, data: null })}
+                    familyMembers={familyMembers}
+                    nominees={nominees}
                   />
                 </div>
               </div>
@@ -510,7 +685,7 @@ const WealthDashboard = () => {
                       const isPositiveReturn = Number(i.currentValue || 0) >= Number(i.investedAmount || 0);
 
                       return (
-                        <div className="investment-item" key={i._id} tabIndex="0"> {/* Make items focusable */}
+                        <div className="investment-item" key={i._id} tabIndex="0">
                           <div className="investment-details">
                             <div className="investment-icon-wrapper">
                               {getInvestmentIcon(i.type)}
@@ -518,9 +693,16 @@ const WealthDashboard = () => {
                             <div>
                               <h4>{i.name}</h4>
                               <p className="investment-type">{i.type}</p>
-                              <p className="investment-nominee">
-                                <FaUser aria-hidden="true" /> Nominee: {i.nominee}
-                              </p>
+                              {i.nominees && i.nominees.length > 0 && (
+                                <div className="nominee-list">
+                                  <h6>Nominees:</h6>
+                                  {i.nominees.map((n) => (
+                                    <p key={n._id} className="investment-nominee">
+                                      <FaUser aria-hidden="true" /> {n.nomineeName} ({n.percentage}%)
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="investment-value-details">
@@ -536,6 +718,14 @@ const WealthDashboard = () => {
                               {returnPercentage}
                             </p>
                             <div className="action-buttons">
+                              <button
+                                className="btn btn-sm btn-outline-danger action-btn"
+                                onClick={() => toggleFavorite(i._id, 'investment')}
+                                title={i.favorite ? "Unmark Favorite" : "Mark Favorite"}
+                                aria-label={i.favorite ? `Unmark ${i.name} as favorite` : `Mark ${i.name} as favorite`}
+                              >
+                                {i.favorite ? <FaHeart /> : <FaRegHeart />}
+                              </button>
                               <button
                                 className="btn btn-sm btn-outline-primary action-btn"
                                 onClick={() => setEditing({ type: "investment", data: i })}
@@ -563,35 +753,129 @@ const WealthDashboard = () => {
             </div>
           </div>
         )}
-      </div> {/* End of tab-content */}
+      </div>
     </div>
   );
 };
 
-const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
+const Form = ({ type, onSubmit, initial, onCancelEdit, familyMembers }) => {
   const defaultState = useMemo(() => {
+    // Ensure defaultState correctly resets all fields including image related ones
     return type === "asset"
-      ? { name: "", type: "", value: "", location: "", nominee: "", description: "" }
-      : { name: "", type: "", investedAmount: "", currentValue: "", nominee: "" };
+      ? { name: "", type: "", value: "", location: "", description: "", imageUrl: "", imageFile: null, nominees: [{ name: "", percentage: 0, nomineeId: "" }] }
+      : { name: "", type: "", investedAmount: "", currentValue: "", nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
   }, [type]);
 
   const [form, setForm] = useState(initial || defaultState);
 
+  // When initial data changes (e.g., for editing OR clearing form after submission), reset form state
   useEffect(() => {
-    setForm(initial || defaultState);
+    if (initial) {
+      // Map initial nominees to include nomineeId (which comes from backend Nominee model)
+      const initialNominees = initial.nominees && initial.nominees.length > 0
+        ? initial.nominees.map(n => ({
+          name: n.nomineeName, // Use nomineeName from fetched data
+          percentage: n.percentage,
+          nomineeId: n.nomineeId // This is the _id of the Family member
+        }))
+        : [{ name: "", percentage: 0, nomineeId: "" }];
+
+      setForm({
+        ...initial,
+        imageFile: null, // Always clear imageFile when switching to edit mode
+        imageUrl: initial.imageUrl || "", // Use existing imageUrl or empty string
+        nominees: initialNominees,
+      });
+    } else {
+      setForm(defaultState); // Reset to default (empty) state
+    }
   }, [initial, defaultState]);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setForm((prev) => ({ ...prev, imageFile: file, imageUrl: URL.createObjectURL(file) }));
+    } else {
+      setForm((prev) => ({ ...prev, imageFile: null, imageUrl: "" }));
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setForm((prev) => ({ ...prev, imageFile: null, imageUrl: "" }));
+  };
+
+  const addNominee = () => {
+    // Prevent adding if nominee with same name already exists
+    const existingNames = form.nominees.map(n => n.name);
+    if (existingNames.includes("") || existingNames.length >= familyMembers.length) {
+      toast.error("Please fill all existing nominee entries or no more unique nominees available.");
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      nominees: [...prev.nominees, { name: "", percentage: 0, nomineeId: "" }],
+    }));
+  };
+
+  const handleNomineeChange = (index, field, value) => {
+    setForm((prev) => {
+      const newNominees = [...prev.nominees];
+
+      if (field === "name") {
+        const trimmedValue = value.trim();
+
+        const duplicate = newNominees.some(
+          (n, i) => n.name === trimmedValue && i !== index
+        );
+        if (duplicate) {
+          toast.error("This nominee is already added. You can update their percentage instead.");
+          return prev;
+        }
+
+        newNominees[index].name = trimmedValue;
+
+        // Try to find nomineeId from family list; allow null for custom names
+        const matchedFamily = familyMembers.find(member => member.fullName === trimmedValue);
+        newNominees[index].nomineeId = matchedFamily ? matchedFamily._id : null;
+      }
+
+      if (field === "percentage") {
+        newNominees[index].percentage = Number(value);
+      }
+
+      return { ...prev, nominees: newNominees };
+    });
+  };
+
+
+  const removeNominee = (index) => {
+    setForm((prev) => {
+      const newNominees = prev.nominees.filter((_, i) => i !== index);
+      // If all nominees are removed, ensure at least one empty nominee field remains for UX
+      if (newNominees.length === 0) {
+        return { ...prev, nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
+      }
+      return { ...prev, nominees: newNominees };
+    });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Common validation
     const isNegative = (val) => Number(val) < 0;
+    const totalPercentage = form.nominees.reduce((sum, n) => sum + (n.percentage || 0), 0);
+    const hasAnyNomineeName = form.nominees.some(n => n.name);
 
+    // Validation for required fields for asset/investment
     if (type === "asset") {
-      if (!form.name || !form.type || form.value === "" || !form.nominee) {
-        toast.error("Please fill in all required fields for asset.");
+      if (!form.name || !form.type || form.value === "") {
+        toast.error("Please fill in all required fields for asset (Name, Type, Value).");
         return;
       }
       if (isNegative(form.value)) {
@@ -599,8 +883,8 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
         return;
       }
     } else if (type === "investment") {
-      if (!form.name || !form.type || form.investedAmount === "" || form.currentValue === "" || !form.nominee) {
-        toast.error("Please fill in all required fields for investment.");
+      if (!form.name || !form.type || form.investedAmount === "" || form.currentValue === "") {
+        toast.error("Please fill in all required fields for investment (Name, Type, Invested, Current Value).");
         return;
       }
       if (isNegative(form.investedAmount)) {
@@ -609,6 +893,26 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
       }
       if (isNegative(form.currentValue)) {
         toast.error("Current value cannot be negative.");
+        return;
+      }
+    }
+
+    // Nominee specific validations
+    if (hasAnyNomineeName || form.nominees.some(n => n.percentage > 0)) {
+      if (totalPercentage > 100) {
+        // No toast here anymore
+        return;
+      }
+
+
+      const invalidNominee = form.nominees.some(n =>
+        n.name.trim() === "" ||
+        n.percentage < 0 ||
+        (!n.name && n.percentage > 0)
+      );
+
+      if (invalidNominee) {
+        toast.error("Ensure all entered nominees have a valid name selected from the list and a non-negative percentage. Remove empty nominee rows if not needed.");
         return;
       }
     }
@@ -703,6 +1007,35 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
                 onChange={handleChange}
               />
             </div>
+
+            {/* Field for Image Upload */}
+            <div className="mb-3">
+              <label htmlFor="asset-image-upload" className="form-label">Upload Image (Optional)</label>
+              <input
+                type="file"
+                className="form-control"
+                id="asset-image-upload"
+                name="imageFile" // Name for the file input
+                accept="image/*" // Accept only image files
+                onChange={handleImageChange}
+              />
+              <small className="form-text text-muted">Select an image file (e.g., JPG, PNG).</small>
+
+              {/* Display current image or preview of new image */}
+              {(form.imageUrl || initial?.imageUrl) && (
+                <div className="mt-3 image-preview-container">
+                  <p className="mb-2">Current Image:</p>
+                  <img
+                    src={form.imageUrl || initial?.imageUrl}
+                    alt="Asset"
+                    className="img-thumbnail"
+                    style={{ maxWidth: '200px', maxHeight: '200px' }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/200x200/cccccc/000000?text=Image+Error"; }}
+                  />
+                  <button type="button" className="btn btn-sm btn-outline-danger ms-2" onClick={handleRemoveImage}>Remove Image</button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -738,20 +1071,58 @@ const Form = ({ type, onSubmit, initial, onCancelEdit }) => {
           </>
         )}
 
-        <div className="mb-3">
-          <label htmlFor={`${type}-nominee`} className="form-label">Nominee <span className="text-danger">*</span></label>
-          <input
-            type="text"
-            className="form-control"
-            id={`${type}-nominee`}
-            name="nominee"
-            value={form.nominee}
-            placeholder="e.g., Jane Doe, Alex Doe"
-            onChange={handleChange}
-            required
-            aria-required="true"
-          />
-        </div>
+        {form.nominees.map((nominee, index) => (
+          <div key={index} className="mb-3 nominee-row">
+            <div className="d-flex gap-2">
+              <div className="w-50">
+                <label htmlFor={`${type}-nominee-${index}`} className="form-label">Nominee {index + 1} Name <span className="text-danger">*</span></label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id={`${type}-nominee-${index}`}
+                  value={nominee.name}
+                  onChange={(e) => handleNomineeChange(index, "name", e.target.value)}
+                  placeholder="Enter nominee name or select"
+                  list={`family-options-${index}`}
+                  required={nominee.percentage > 0 || (form.nominees.length === 1 && index === 0)} // Required if percentage > 0 or if it's the only (first) nominee
+                  aria-required={nominee.percentage > 0 || (form.nominees.length === 1 && index === 0)}
+                />
+                <datalist id={`family-options-${index}`}>
+                  {familyMembers.map((member) => (
+                    <option key={member._id} value={member.fullName} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="w-25">
+                <label htmlFor={`${type}-percentage-${index}`} className="form-label">Percentage <span className="text-danger">*</span></label>
+                <input
+                  type="number"
+                  className="form-control"
+                  id={`${type}-percentage-${index}`}
+                  value={nominee.percentage}
+                  onChange={(e) => handleNomineeChange(index, "percentage", e.target.value)}
+                  placeholder="0-100"
+                  min="0"
+                  max="100"
+                  required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)} // Required if name exists or if it's the only (first) nominee
+                  aria-required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)}
+                />
+              </div>
+              {index > 0 && ( // Allow removing only if there's more than one nominee field
+                <button
+                  type="button"
+                  className="btn btn-outline-danger mt-4"
+                  onClick={() => removeNominee(index)}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        <button type="button" className="btn btn-outline-secondary mb-3" onClick={addNominee}>
+          Add Another Nominee
+        </button>
 
         <div className="d-flex justify-content-between flex-wrap gap-2">
           <button type="submit" className="btn btn-primary flex-grow-1">
