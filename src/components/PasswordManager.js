@@ -136,8 +136,6 @@ const PasswordManager = () => {
     // Define freeFormWebsiteCategories using useMemo so it recomputes only when customBlocks change
     const freeFormWebsiteCategories = useMemo(() => ([
         'Banking',
-        'Investment',
-        'Email',
         'Personal',
         ...customBlocks
     ]), [customBlocks]);

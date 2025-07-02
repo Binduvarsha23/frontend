@@ -1,0 +1,36 @@
+.block-tile {
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.block-tile:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4); /* blue shadow */
+}
+
+.file-preview {
+  background-color: #4b5563; /* gray */
+  color: white;
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 10px;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+  transition: all 0.3s ease-in-out;
+}
+.file-preview:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.5); /* darker blue */
+}
+.file-name {
+  font-weight: bold;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.file-link {
+  color: #bfdbfe;
+  text-decoration: underline;
+}

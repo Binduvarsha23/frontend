@@ -1,0 +1,461 @@
+/* FamilyTree.css */
+
+/* --- General UI Enhancements --- */
+body {
+  background-color: #f8f9fa;
+  font-family: 'Inter', sans-serif;
+  color: #343a40;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container.my-4 {
+  padding: 30px;
+  background-color: #fefefe;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  margin-top: 30px;
+  margin-bottom: 30px;
+}
+
+.card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+h3 {
+  color: #212529;
+  font-weight: 700;
+  font-size: 2.2em;
+  margin-bottom: 25px;
+}
+
+h5 {
+  color: #343a40;
+  font-weight: 600;
+  font-size: 1.5em;
+  margin-bottom: 20px;
+}
+
+h6 {
+  color: #495057;
+  font-weight: 500;
+  font-size: 1.1em;
+  margin-top: 25px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.d-flex.justify-content-between.align-items-center.my-3 {
+  margin-bottom: 30px !important;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.btn {
+  border-radius: 8px;
+  padding: 10px 25px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  font-size: 1em;
+}
+
+.btn-group .btn {
+  border-radius: 50px;
+  padding: 10px 22px;
+  font-weight: 500;
+  border: 1px solid #007bff;
+}
+
+.btn-outline-primary {
+  color: #007bff;
+  background-color: transparent;
+  border-color: #007bff;
+}
+.btn-outline-primary:hover {
+  background-color: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+.btn-outline-primary.active {
+  background-color: #007bff;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.35);
+  border-color: #007bff;
+}
+
+.btn-success {
+  background-color: #28a745;
+  border-color: #28a745;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.25);
+}
+.btn-success:hover {
+  background-color: #218838;
+  border-color: #1e7e34;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.35);
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+.btn-danger:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.form-control, .form-select {
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  padding: 12px 18px;
+  font-size: 0.95em;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background-color: #fcfdfe;
+}
+.form-control:focus, .form-select:focus {
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.2);
+  background-color: #ffffff;
+}
+
+.asset-info {
+  font-size: 0.75em;
+  color: #6c757d;
+  margin-top: 5px;
+}
+
+/* List styles for nominee manager and card view */
+ul {
+  list-style: none;
+  padding: 0;
+}
+li {
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95em;
+  color: #495057;
+}
+li:last-child {
+  border-bottom: none;
+}
+li span.d-flex {
+  flex-grow: 1;
+  align-items: center;
+}
+li button {
+  margin-left: 10px;
+}
+
+/* --- Family Tree Specific Styles --- */
+.family-tree-card {
+  padding: 40px;
+  background: linear-gradient(145deg, #fefefe, #f0f4f7);
+  overflow-x: auto;
+  min-width: 320px;
+  position: relative;
+  border: 1px solid #e9ecef;
+}
+
+.family-tree-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  min-height: 700px;
+  padding-bottom: 60px;
+  width: max-content;
+  margin: 0 auto;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+/* Generation Layer Styling */
+.generation-layer {
+  display: flex;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  margin-bottom: 120px;
+  padding-top: 50px;
+  align-items: flex-start;
+}
+
+.grandparents-layer {
+  margin-top: 30px;
+  gap: 50px;
+}
+
+.you-spouse-sibling-layer {
+  margin-bottom: 110px;
+  gap: 50px;
+  align-items: center;
+}
+
+.children-layer {
+  flex-wrap: wrap;
+  gap: 50px;
+  margin-bottom: 30px;
+  padding-top: 70px;
+}
+
+.sibling-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: calc(100% + 180px);
+  padding-right: 100px;
+}
+.sibling-branch .tree-node {
+  margin-bottom: 60px;
+}
+.sibling-branch .tree-node:last-child {
+  margin-bottom: 0;
+}
+
+/* --- Tree Nodes (Family Members) --- */
+.tree-node {
+  background-color: #ffffff;
+  border-radius: 10px; /* Rectangular with slight rounding */
+  width: 200px; /* Wider rectangular block */
+  height: 150px; /* Taller to accommodate content */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transition: transform 0.25s ease-in-out, box-shadow 0.25s ease-in-out;
+  border: 5px solid;
+  position: relative;
+  padding: 10px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  font-family: 'Roboto', sans-serif;
+  z-index: 10;
+}
+
+.tree-node:hover {
+  transform: translateY(-10px) scale(1.03);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 10px;
+}
+
+.node-content strong {
+  font-weight: 700;
+  font-size: 1.2em;
+  color: #212529;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.node-content span {
+  font-size: 0.85em;
+  color: #6c757d;
+  margin-top: 6px;
+}
+
+.crown-icon {
+  color: #ffc107;
+  font-size: 2em;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+}
+
+/* Node Colors based on relation */
+.parent-node {
+  border-color: #007bff;
+  background-color: #e6f2ff;
+}
+.parent-node .node-content strong { color: #0056b3; }
+
+.self-node {
+  border-color: #28a745;
+  background-color: #eaffea;
+}
+.self-node .node-content strong { color: #1e7e34; }
+
+.spouse-node {
+  border-color: #ffc107;
+  background-color: #fffde6;
+}
+.spouse-node .node-content strong { color: #b38600; }
+
+.child-node {
+  border-color: #6f42c1;
+  background-color: #f5e6ff;
+}
+.child-node .node-content strong { color: #4b2d82; }
+
+.sibling-node {
+  border-color: #17a2b8;
+  background-color: #e6f9fa;
+}
+.sibling-node .node-content strong { color: #0f6674; }
+
+/* --- SVG Connectors --- */
+.connector-group {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.connector-line,
+.parents-union,
+.marriage-cross {
+  stroke: #6c757d;
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke 0.3s ease;
+}
+
+.marriage-cross {
+  stroke: #dc3545;
+}
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 992px) {
+  .grandparents-layer, .you-spouse-sibling-layer, .children-layer {
+    gap: 30px;
+    margin-bottom: 80px;
+    padding-top: 40px;
+  }
+  .tree-node {
+    width: 150px;
+    height: 120px;
+    font-size: 0.9em;
+  }
+  .node-content strong {
+    font-size: 1em;
+  }
+  .node-content span {
+    font-size: 0.7em;
+  }
+  .crown-icon {
+    font-size: 1.8em;
+    margin-bottom: 8px;
+  }
+  .sibling-branch {
+    right: calc(100% + 120px);
+    padding-right: 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .family-tree-container {
+    min-height: 550px;
+    width: auto;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .generation-layer {
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    margin-bottom: 70px;
+    padding-top: 0;
+  }
+  .grandparents-layer {
+    margin-bottom: 80px;
+    gap: 0;
+  }
+  .grandparents-layer .tree-node {
+    margin-bottom: 20px;
+  }
+  .grandparents-layer .tree-node:last-of-type {
+    margin-bottom: 0;
+  }
+  .you-spouse-sibling-layer {
+    flex-direction: column;
+    gap: 30px;
+    margin-bottom: 80px;
+  }
+  .children-layer {
+    padding-top: 60px;
+    gap: 30px;
+  }
+  .sibling-branch {
+    position: relative;
+    top: auto;
+    right: auto;
+    transform: none;
+    padding-right: 0;
+    margin-top: 20px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+  }
+  .sibling-branch .tree-node {
+    margin-bottom: 0;
+  }
+
+  .btn {
+    padding: 8px 18px;
+    font-size: 0.9em;
+  }
+  .form-control, .form-select {
+    padding: 10px 15px;
+  }
+  h3 {
+    font-size: 1.8em;
+  }
+  h5 {
+    font-size: 1.3em;
+  }
+}
+
+@media (max-width: 480px) {
+  .tree-node {
+    width: 120px;
+    height: 100px;
+    font-size: 0.8em;
+    border-width: 4px;
+  }
+  .node-content strong {
+    font-size: 0.9em;
+  }
+  .node-content span {
+    font-size: 0.6em;
+  }
+  .crown-icon {
+    font-size: 1.6em;
+    margin-bottom: 5px;
+  }
+  .grandparents-layer, .you-spouse-sibling-layer, .children-layer, .sibling-branch {
+    gap: 15px;
+    margin-bottom: 40px;
+  }
+  .family-tree-card {
+    padding: 20px;
+  }
+  .container.my-4 {
+    padding: 15px;
+  }
+  .btn-group .btn {
+    padding: 8px 16px;
+    font-size: 0.85em;
+  }
+}
