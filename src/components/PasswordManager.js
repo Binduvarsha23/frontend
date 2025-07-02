@@ -108,17 +108,30 @@ const PasswordManager = () => {
         }
     };
 const toggleFavorite = async (id) => {
+  // Optimistically update UI
+  setPasswords((prev) =>
+    prev.map((p) =>
+      p._id === id ? { ...p, favorite: !p.favorite } : p
+    )
+  );
+
   try {
     const res = await axios.patch(`https://backend-pbmi.onrender.com/api/passwords/${id}/favorite`);
     if (res.data.success) {
       toast.success(res.data.favorite ? 'Marked as favorite' : 'Unmarked as favorite');
-      fetchPasswords(); // Refresh list
     }
   } catch (err) {
+    // Revert UI if failed
+    setPasswords((prev) =>
+      prev.map((p) =>
+        p._id === id ? { ...p, favorite: !p.favorite } : p
+      )
+    );
     console.error('❌ Favorite toggle failed', err);
     toast.error('Failed to toggle favorite');
   }
 };
+
 
     useEffect(() => {
         if (userId) {
