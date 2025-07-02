@@ -23,6 +23,15 @@ const UserDashboard = () => {
     forms: [],
     nominees: []
   });
+const [recentUploads, setRecentUploads] = useState({
+  forms: [],
+  nominees: [],
+  assets: [],
+  investments: [],
+  passwords: []
+});
+
+
 
   // Set userId from Firebase
   useEffect(() => {
@@ -82,6 +91,38 @@ const UserDashboard = () => {
 
     fetchFavorites();
   }, [userId]);
+
+  useEffect(() => {
+  if (!userId) return;
+
+  const fetchRecentUploads = async () => {
+    try {
+      const [forms, nominees, assets, investments, passwords] = await Promise.all([
+        axios.get(`https://backend-pbmi.onrender.com/api/saved-forms?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/nominees?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/assets?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/investments?userId=${userId}`),
+        axios.get(`https://backend-pbmi.onrender.com/api/passwords?userId=${userId}`)
+      ]);
+
+      const sortRecent = (data) =>
+        [...data].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 4);
+
+      setRecentUploads({
+        forms: sortRecent(forms.data),
+        nominees: sortRecent(nominees.data),
+        assets: sortRecent(assets.data),
+        investments: sortRecent(investments.data),
+        passwords: sortRecent(passwords.data),
+      });
+    } catch (err) {
+      console.error("❌ Failed to fetch recent uploads:", err);
+    }
+  };
+
+  fetchRecentUploads();
+}, [userId]);
+
 
  const toggleFavorite = async (type, id) => {
   setFavorites(prev => {
@@ -301,9 +342,78 @@ const UserDashboard = () => {
   </div>
 )}
 
+<div className="mt-5 px-4">
+  <h4 className="mb-3 text-primary">🕘 Recent Uploads</h4>
+
+  {Object.entries(recentUploads).map(([key, list]) => list.length > 0 && (
+    <div key={key} className="mb-4">
+      <h5 className="text-secondary text-capitalize">
+        {key === "forms" ? "Documents" : key}
+      </h5>
+      <div className="row">
+        {list.map((item) => {
+          let decrypted = item?.data?.encrypted ? decryptData(item.data.encrypted) : item.data || {};
+          if (key === "passwords") decrypted = decryptData(item.data);
+
+          return (
+            <div key={item._id} className="col-12 col-sm-6 col-md-3 mb-3">
+              <div className="card p-3 shadow-sm h-100">
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <h6 className="mb-0">
+                    {key === "forms"
+                      ? item.blockName
+                      : item.name || item.nomineeName || decrypted.website || "Entry"}
+                  </h6>
+                  {item.createdAt && !isNaN(new Date(item.createdAt)) && (
+  <small className="text-muted">{new Date(item.createdAt).toLocaleDateString()}</small>
+)}
+
+                </div>
+
+                <div style={{ fontSize: "0.85rem" }}>
+                  {key === "forms" && Object.entries(decrypted).slice(0, 3).map(([k, v], i) => (
+                    <div key={i}><strong>{k}:</strong> {String(v).slice(0, 30)}{String(v).length > 30 && "..."}</div>
+                  ))}
+                  {key === "nominees" && (
+                    <>
+                      <div><strong>Asset:</strong> {item.assetName}</div>
+                      <div><strong>Type:</strong> {item.type}</div>
+                      <div><strong>%:</strong> {item.percentage}%</div>
+                    </>
+                  )}
+                  {key === "assets" && (
+                    <>
+                      <div><strong>Type:</strong> {item.type}</div>
+                      <div><strong>Value:</strong> ₹{item.value}</div>
+                      {item.location && <div><strong>Location:</strong> {item.location}</div>}
+                    </>
+                  )}
+                  {key === "investments" && (
+                    <>
+                      <div><strong>Type:</strong> {item.type}</div>
+                      <div><strong>Invested:</strong> ₹{item.investedAmount}</div>
+                      <div><strong>Current:</strong> ₹{item.currentValue}</div>
+                    </>
+                  )}
+                  {key === "passwords" && (
+                    <>
+                      <div><strong>Website:</strong> {decrypted.website}</div>
+                      <div><strong>Username:</strong> {decrypted.username}</div>
+                      <div><strong>Password:</strong> {decrypted.password}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ))}
+</div>
+
 
       <div className="p-4">
-        <h2 className="mb-3">Welcome to Your Dashboard</h2>
         <GoogleDriveSync onSyncComplete={handleSyncComplete} />
         {lastSynced && <div className="text-muted mb-3">Last synced: {lastSynced}</div>}
         <div className="d-flex flex-wrap gap-3">
