@@ -186,6 +186,27 @@ li button {
   align-items: flex-start;
 }
 
+.asset-list {
+  max-height: 100px; /* Adjust as needed */
+  overflow-y: auto;
+  margin-top: 5px;
+  font-size: 0.85rem;
+}
+
+.asset-info {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.asset-list::-webkit-scrollbar {
+  width: 4px;
+}
+.asset-list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 2px;
+} 
+
 .grandparents-layer {
   margin-top: 30px;
   gap: 50px;
