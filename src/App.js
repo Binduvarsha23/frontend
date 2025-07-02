@@ -16,6 +16,7 @@ import UserDashboard from "./components/UserDashboard";
 import SecuritySettings from "./components/SecuritySettings";
 import WealthDashboard from "./components/WealthDashboard";
 import PasswordManager from "./components/PasswordManager";
+import WealthPlanning from "./components/WealthPlanning";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -80,6 +81,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <SecuritySettings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/family"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <WealthPlanning />
               </Layout>
             </ProtectedRoute>
           }
