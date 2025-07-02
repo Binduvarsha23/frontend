@@ -252,25 +252,30 @@ await set("blockUploads", uploadsMap);
   return (
     <Container className="py-4">
       <ToastContainer />
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 style={{
-          fontSize: "1.75rem",
-          fontWeight: "600",
-          fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
-          color: "#343a40",
-          letterSpacing: "0.5px",
-          marginBottom: "0"
-        }}>
-          Your Document Blocks
-        </h2>
-        <small className="text-muted">Manage and access your digital documents</small>
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-2">
+  <div>
+    <h2
+      style={{
+        fontSize: "1.75rem",
+        fontWeight: "600",
+        fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif",
+        color: "#343a40",
+        letterSpacing: "0.5px",
+        marginBottom: "0",
+      }}
+    >
+      Your Document Blocks
+    </h2>
+    <small className="text-muted">Manage and access your digital documents</small>
+  </div>
 
-        <div>
-          <Button onClick={() => setShowCreateModal(true)} className="me-2">
-            + Create Custom Block
-          </Button>
-        </div>
-      </div>
+  <div className="ms-md-auto mt-2 mt-md-0">
+    <Button onClick={() => setShowCreateModal(true)} className="w-100 w-md-auto">
+      + Create Custom Block
+    </Button>
+  </div>
+</div>
+
 
       {loading ? (
         <Spinner animation="border" />
