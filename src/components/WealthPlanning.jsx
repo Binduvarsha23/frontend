@@ -401,11 +401,14 @@ const WealthPlanning = () => {
                       <div className="node-content">
                         <strong>{s.fullName}</strong>
                         <span>Sibling</span>
-                        {getAssetsForMember(s._id).map((asset, index) => (
-                          <div key={index} className="asset-info">
-                            {asset.name} ({asset.type}: {asset.percentage}%)
-                          </div>
-                        ))}
+                        <div className="asset-list">
+  {getAssetsForMember(s._id).map((asset, index) => (
+    <div key={index} className="asset-info">
+      {asset.name} ({asset.type}: {asset.percentage}%)
+    </div>
+  ))}
+</div>
+
                       </div>
                     </div>
                   ))}
@@ -431,11 +434,14 @@ const WealthPlanning = () => {
                   <div className="node-content">
                     <strong>{spouse.fullName}</strong>
                     <span>Spouse</span>
-                    {getAssetsForMember(spouse._id).map((asset, index) => (
-                      <div key={index} className="asset-info">
-                        {asset.name} ({asset.type}: {asset.percentage}%)
-                      </div>
-                    ))}
+                    <div className="asset-list">
+  {getAssetsForMember(spouse._id).map((asset, index) => (
+    <div key={index} className="asset-info">
+      {asset.name} ({asset.type}: {asset.percentage}%)
+    </div>
+  ))}
+</div>
+
                   </div>
                 </div>
               )}
@@ -454,11 +460,14 @@ const WealthPlanning = () => {
                     <div className="node-content">
                       <strong>{c.fullName}</strong>
                       <span>Child</span>
-                      {getAssetsForMember(c._id).map((asset, index) => (
-                        <div key={index} className="asset-info">
-                          {asset.name} ({asset.type}: {asset.percentage}%)
-                        </div>
-                      ))}
+                      <div className="asset-list">
+  {getAssetsForMember(c._id).map((asset, index) => (
+    <div key={index} className="asset-info">
+      {asset.name} ({asset.type}: {asset.percentage}%)
+    </div>
+  ))}
+</div>
+
                     </div>
                   </div>
                 ))}
