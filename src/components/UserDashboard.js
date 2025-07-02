@@ -168,107 +168,139 @@ const UserDashboard = () => {
     <>
       {/* ❤️ Favorites Section */}
       {Object.values(favorites).some(arr => arr.length > 0) && (
-        <div className="mt-4 px-4">
-          <h4 className="mb-3">
-            <FaHeart className="text-danger me-2" />
-            Your Favorites
-          </h4>
-          <div className="row">
-            {favorites.assets.map((a) => (
-              <div key={a._id} className="col-md-4 mb-3">
-                <div className="card p-3 shadow-sm">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {a.name}</h6>
-                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("assets", a._id)} />
-                  </div>
-                  <div className="text-muted">Type: {a.type}</div>
-                  <div>Value: ₹{a.value}</div>
-                  {a.location && <div>Location: {a.location}</div>}
-                </div>
-              </div>
-            ))}
-            {favorites.investments.map((i) => (
-              <div key={i._id} className="col-md-4 mb-3">
-                <div className="card p-3 shadow-sm">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {i.name}</h6>
-                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("investments", i._id)} />
-                  </div>
-                  <div className="text-muted">Type: {i.type}</div>
-                  <div>Invested: ₹{i.investedAmount}</div>
-                  <div>Current: ₹{i.currentValue}</div>
-                </div>
-              </div>
-            ))}
-            {favorites.passwords.map((p) => {
-  const decrypted = decryptData(p.data);
-  return (
-    <div key={p._id} className="col-md-4 mb-3">
-      <div className="card p-3 shadow-sm">
-        <div className="d-flex justify-content-between align-items-center">
-          <h6 className="text-danger"><FaHeart /> {decrypted.website || 'Password'}</h6>
-          <FaHeart
-            className="text-danger"
-            style={{ cursor: "pointer" }}
-            onClick={() => toggleFavorite("passwords", p._id)}
-          />
-        </div>
-        <div className="text-muted">Category: {p.blockName}</div>
-        <div><strong>Username:</strong> {decrypted.username}</div>
-        <div><strong>Password:</strong> {decrypted.password}</div>
-      </div>
-    </div>
-  );
-})}
+  <div className="mt-4 px-4">
+    <h4 className="mb-4">
+      <FaHeart className="text-danger me-2" />
+      Your Favorites
+    </h4>
 
-            {favorites.forms.map((f) => {
-              const decrypted = f.data?.encrypted ? decryptData(f.data.encrypted) : f.data || {};
-              return (
-                <div key={f._id} className="col-md-4 mb-3">
-                  <div className="card p-3 shadow-sm">
-                    <div className="d-flex justify-content-between align-items-center">
-                      <h6 className="text-danger"><FaHeart /> {f.blockName}</h6>
-                      <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("saved-forms", f._id)} />
-                    </div>
-                    <div className="text-muted mb-2">
-                      Submitted: {new Date(f.createdAt).toLocaleString()}
-                    </div>
-                    {Object.entries(decrypted).map(([field, value], i) => (
-                      <div key={i} style={{ fontSize: "0.85rem", marginBottom: "5px" }}>
-                        <strong>{field}:</strong>{" "}
-                        {typeof value === "string" && value.startsWith("data:image") ? (
-                          <img
-                            src={value}
-                            alt={field}
-                            style={{ width: "100%", maxHeight: "150px", objectFit: "contain", borderRadius: "6px" }}
-                          />
-                        ) : typeof value === "string" && value.startsWith("data:") ? (
-                          <a href={value} download style={{ color: "#007bff" }}>Download File</a>
-                        ) : (
-                          <span>{String(value)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {favorites.nominees.map((n) => (
-              <div key={n._id} className="col-md-4 mb-3">
+    {/* 🔐 Passwords */}
+    {favorites.passwords.length > 0 && (
+      <>
+        <h5 className="mb-3 text-primary">🔐 Passwords</h5>
+        <div className="row mb-4">
+          {favorites.passwords.map((p) => {
+            const decrypted = decryptData(p.data);
+            return (
+              <div key={p._id} className="col-md-4 mb-3">
                 <div className="card p-3 shadow-sm">
                   <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {n.nomineeName}</h6>
-                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("nominees", n._id)} />
+                    <h6 className="text-danger"><FaHeart /> {decrypted.website || 'Password'}</h6>
+                    <FaHeart
+                      className="text-danger"
+                      style={{ cursor: "pointer" }}
+                      onClick={() => toggleFavorite("passwords", p._id)}
+                    />
                   </div>
-                  <div><strong>Asset:</strong> {n.assetName || "Unnamed"}</div>
-                  <div><strong>Type:</strong> {n.type}</div>
-                  <div><strong>Percentage:</strong> {n.percentage}%</div>
+                  <div className="text-muted">Category: {p.blockName}</div>
+                  <div><strong>Username:</strong> {decrypted.username}</div>
+                  <div><strong>Password:</strong> {decrypted.password}</div>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      )}
+      </>
+    )}
+
+    {/* 📄 Documents */}
+    {favorites.forms.length > 0 && (
+      <>
+        <h5 className="mb-3 text-success">📄 Documents</h5>
+        <div className="row mb-4">
+          {favorites.forms.map((f) => {
+            const decrypted = f.data?.encrypted ? decryptData(f.data.encrypted) : f.data || {};
+            return (
+              <div key={f._id} className="col-md-4 mb-3">
+                <div className="card p-3 shadow-sm">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <h6 className="text-danger"><FaHeart /> {f.blockName}</h6>
+                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("saved-forms", f._id)} />
+                  </div>
+                  <div className="text-muted mb-2">Submitted: {new Date(f.createdAt).toLocaleString()}</div>
+                  {Object.entries(decrypted).map(([field, value], i) => (
+                    <div key={i} style={{ fontSize: "0.85rem", marginBottom: "5px" }}>
+                      <strong>{field}:</strong>{" "}
+                      {typeof value === "string" && value.startsWith("data:image") ? (
+                        <img
+                          src={value}
+                          alt={field}
+                          style={{ width: "100%", maxHeight: "150px", objectFit: "contain", borderRadius: "6px" }}
+                        />
+                      ) : typeof value === "string" && value.startsWith("data:") ? (
+                        <a href={value} download style={{ color: "#007bff" }}>Download File</a>
+                      ) : (
+                        <span>{String(value)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    )}
+
+    {/* 💰 Wealth */}
+    {(favorites.assets.length > 0 || favorites.investments.length > 0) && (
+      <>
+        <h5 className="mb-3 text-warning">💰 Wealth</h5>
+        <div className="row mb-4">
+          {favorites.assets.map((a) => (
+            <div key={a._id} className="col-md-4 mb-3">
+              <div className="card p-3 shadow-sm">
+                <div className="d-flex justify-content-between align-items-center">
+                  <h6 className="text-danger"><FaHeart /> {a.name}</h6>
+                  <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("assets", a._id)} />
+                </div>
+                <div className="text-muted">Type: {a.type}</div>
+                <div>Value: ₹{a.value}</div>
+                {a.location && <div>Location: {a.location}</div>}
+              </div>
+            </div>
+          ))}
+          {favorites.investments.map((i) => (
+            <div key={i._id} className="col-md-4 mb-3">
+              <div className="card p-3 shadow-sm">
+                <div className="d-flex justify-content-between align-items-center">
+                  <h6 className="text-danger"><FaHeart /> {i.name}</h6>
+                  <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("investments", i._id)} />
+                </div>
+                <div className="text-muted">Type: {i.type}</div>
+                <div>Invested: ₹{i.investedAmount}</div>
+                <div>Current: ₹{i.currentValue}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+
+    {/* 👥 Nominees */}
+    {favorites.nominees.length > 0 && (
+      <>
+        <h5 className="mb-3 text-secondary">👥 Nominees</h5>
+        <div className="row mb-4">
+          {favorites.nominees.map((n) => (
+            <div key={n._id} className="col-md-4 mb-3">
+              <div className="card p-3 shadow-sm">
+                <div className="d-flex justify-content-between align-items-center">
+                  <h6 className="text-danger"><FaHeart /> {n.nomineeName}</h6>
+                  <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("nominees", n._id)} />
+                </div>
+                <div><strong>Asset:</strong> {n.assetName || "Unnamed"}</div>
+                <div><strong>Type:</strong> {n.type}</div>
+                <div><strong>Percentage:</strong> {n.percentage}%</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+)}
+
 
       <div className="p-4">
         <h2 className="mb-3">Welcome to Your Dashboard</h2>
