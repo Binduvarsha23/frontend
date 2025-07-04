@@ -2,13 +2,13 @@ import React from 'react';
 import {
   HouseDoorFill, PeopleFill, LockFill,
   CloudUploadFill, CalculatorFill, ShieldLockFill,
-  BoxArrowRight, SafeFill
+  BoxArrowRight
 } from 'react-bootstrap-icons';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const AppSidebar = ({ activeTab, setActiveTab, onLogout, showSidebar, setShowSidebar }) => {
+const AppSidebar = ({ activeTab, setActiveTab, showSidebar, setShowSidebar }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,29 +20,14 @@ const AppSidebar = ({ activeTab, setActiveTab, onLogout, showSidebar, setShowSid
     { id: "wealth", label: "Wealth", icon: <CalculatorFill /> },
     { id: "security", label: "Security", icon: <ShieldLockFill /> },
   ];
+
   const handleTabClick = (id) => {
     setActiveTab(id);
     if (window.innerWidth < 768) setShowSidebar(false);
 
-    if (id === "documents") {
-      navigate("/dashboard");
-    } else if (id === "dashboard") {
-      navigate("/app/dashboard");
-    } else if (id === "security") {
-      navigate("/app/security");
-    }
-    else if (id === "wealth") {
-      navigate("/app/wealth");
-    }
-    else if (id === "passwords") {
-      navigate("/app/password");
-    }
-    else if (id === "family") {
-      navigate("/app/family");
-    }
-    else {
-      navigate(`/app/${id}`);
-    }
+    if (id === "documents") navigate("/dashboard");
+    else if (id === "dashboard") navigate("/app/dashboard");
+    else navigate(`/app/${id}`);
   };
 
   const handleLogout = async () => {
@@ -52,10 +37,21 @@ const AppSidebar = ({ activeTab, setActiveTab, onLogout, showSidebar, setShowSid
 
   return (
     <div
-      className="bg-black text-white d-flex flex-column position-fixed top-0 start-0 vh-100"
-      style={{ width: '260px', zIndex: 1050 }}
+      className="bg-black text-white d-flex flex-column position-fixed top-0 start-0"
+      style={{
+  width: '260px',
+  height: '100vh',
+  minHeight: '100vh',
+  zIndex: 1050,
+  backgroundColor: 'black',
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  overflowY: 'auto',
+}}
+
     >
-      {/* Logo + Close */}
+      {/* Header */}
       <div className="p-4 border-bottom border-secondary d-flex justify-content-between align-items-center">
         <div>
           <h5 className="mb-0 fw-bold">WEALTH VAULT</h5>
@@ -68,24 +64,20 @@ const AppSidebar = ({ activeTab, setActiveTab, onLogout, showSidebar, setShowSid
         >
           ✕
         </button>
-
       </div>
 
       {/* Menu */}
       <div className="flex-grow-1 p-3 overflow-auto">
         {menuItems.map((item) => {
-          // Define expected route for each tab
-          let route = item.id === "documents"
-            ? "/dashboard"
-            : `/app/${item.id === "dashboard" ? "dashboard" : item.id}`;
-
+          let route = item.id === "documents" ? "/dashboard" : `/app/${item.id}`;
           const isActive = location.pathname === route;
 
           return (
             <button
               key={item.id}
-              className={`btn w-100 text-start d-flex align-items-center gap-3 mb-2 py-2 px-3 rounded ${isActive ? 'btn-light text-dark' : 'btn-outline-secondary text-white'
-                }`}
+              className={`btn w-100 text-start d-flex align-items-center gap-3 mb-2 py-2 px-3 rounded ${
+                isActive ? 'btn-light text-dark' : 'btn-outline-secondary text-white'
+              }`}
               onClick={() => handleTabClick(item.id)}
             >
               {item.icon}
@@ -93,7 +85,6 @@ const AppSidebar = ({ activeTab, setActiveTab, onLogout, showSidebar, setShowSid
             </button>
           );
         })}
-
       </div>
 
       {/* Footer */}
