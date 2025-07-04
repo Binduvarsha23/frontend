@@ -5,14 +5,14 @@ import { Button } from 'react-bootstrap';
 import { List } from 'react-bootstrap-icons';
 
 const Layout = ({ children }) => {
-  const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
+  const [showSidebar, setShowSidebar] = useState(window.innerWidth > 600);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 600);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-      setShowSidebar(window.innerWidth > 768);
+      setIsMobile(window.innerWidth <= 600);
+      setShowSidebar(window.innerWidth > 600);
     };
 
     window.addEventListener('resize', handleResize);
