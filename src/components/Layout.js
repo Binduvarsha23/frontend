@@ -7,20 +7,19 @@ import { List } from 'react-bootstrap-icons';
 const Layout = ({ children }) => {
   const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // Optional: adjust sidebar on screen resize
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth <= 768) {
-        setShowSidebar(false);
-      } else {
-        setShowSidebar(true);
-      }
+      setIsMobile(window.innerWidth <= 768);
+      setShowSidebar(window.innerWidth > 768);
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const showHamburger = !showSidebar;
 
   return (
     <div className="d-flex">
@@ -34,17 +33,18 @@ const Layout = ({ children }) => {
         />
       )}
 
-      {/* Main content area */}
+      {/* Main Content */}
       <div
         className="flex-grow-1"
         style={{
-          marginLeft: showSidebar && window.innerWidth > 768 ? '260px' : '0',
-          transition: 'margin-left 0.3s ease',
+          marginLeft: showSidebar && !isMobile ? '260px' : '0',
+          paddingLeft: showHamburger ? '45px' : '0px', // Shift down when 3-bar shows
+          transition: 'margin-left 0.3s ease, padding-top 0.3s ease',
           width: '100%',
         }}
       >
-        {/* 3-bar toggle for mobile */}
-        {!showSidebar && (
+        {/* 3-bar toggle button */}
+        {showHamburger && (
           <Button
             variant="light"
             onClick={() => setShowSidebar(true)}
@@ -56,7 +56,6 @@ const Layout = ({ children }) => {
               backgroundColor: 'white',
               borderRadius: '8px',
               padding: '8px',
-              marginRight:'30px',
               boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
             }}
           >
@@ -64,8 +63,8 @@ const Layout = ({ children }) => {
           </Button>
         )}
 
-        {/* Content */}
-        <div className="p-3" style={{ paddingTop: '20px' }}>{children}</div>
+        {/* Page Content */}
+        <div className="p-3">{children}</div>
       </div>
     </div>
   );
