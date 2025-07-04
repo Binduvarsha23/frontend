@@ -67,7 +67,7 @@ const PasswordManager = () => {
     const [editing, setEditing] = useState(null);
     const [formData, setFormData] = useState({ username: '', password: '', website: '', category: '' });
     const [showPassword, setShowPassword] = useState({});
-
+const passwordListRef = useRef(null);
     const [showCustomModal, setShowCustomModal] = useState(false);
     const [newBlockName, setNewBlockName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -108,30 +108,17 @@ const PasswordManager = () => {
         }
     };
 const toggleFavorite = async (id) => {
-  // Optimistically update UI
-  setPasswords((prev) =>
-    prev.map((p) =>
-      p._id === id ? { ...p, favorite: !p.favorite } : p
-    )
-  );
-
   try {
     const res = await axios.patch(`https://backend-pbmi.onrender.com/api/passwords/${id}/favorite`);
     if (res.data.success) {
       toast.success(res.data.favorite ? 'Marked as favorite' : 'Unmarked as favorite');
+      fetchPasswords(); // Refresh list
     }
   } catch (err) {
-    // Revert UI if failed
-    setPasswords((prev) =>
-      prev.map((p) =>
-        p._id === id ? { ...p, favorite: !p.favorite } : p
-      )
-    );
     console.error('❌ Favorite toggle failed', err);
     toast.error('Failed to toggle favorite');
   }
 };
-
 
     useEffect(() => {
         if (userId) {
@@ -363,10 +350,14 @@ const toggleFavorite = async (id) => {
             <div className="category-grid">
                 <div
                     className={`category-card ${selectedCategory === 'All Passwords' ? 'active' : ''}`}
-                    onClick={() => {
-                        setSelectedCategory('All Passwords');
-                        setShowForm(false);
-                    }}
+                   onClick={() => {
+  setSelectedCategory('All Passwords');
+  setShowForm(false);
+  setTimeout(() => {
+    passwordListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 15);
+}}
+
                     style={{ '--card-color': getCategoryColor('All Passwords') }}
                 >
                     <div className="card-icon-wrapper">
@@ -413,7 +404,7 @@ const toggleFavorite = async (id) => {
                 </div>
             </div>
 
-            <div className="password-list-section">
+            <div className="password-list-section" ref={passwordListRef}>
                 <div className="list-header">
                     {/* Left half: Category title and Add icon */}
                     <div className="list-header-left">
