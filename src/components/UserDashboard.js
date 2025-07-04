@@ -226,7 +226,7 @@ const [recentUploads, setRecentUploads] = useState({
               <div key={p._id} className="col-md-4 mb-3">
                 <div className="card p-3 shadow-sm">
                   <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {decrypted.website || 'Password'}</h6>
+                    <h6 className="text-danger"> {decrypted.website || 'Password'}</h6>
                     <FaHeart
                       className="text-danger"
                       style={{ cursor: "pointer" }}
@@ -246,42 +246,57 @@ const [recentUploads, setRecentUploads] = useState({
 
     {/* 📄 Documents */}
     {favorites.forms.length > 0 && (
-      <>
-        <h5 className="mb-3 text-success">📄 Documents</h5>
-        <div className="row mb-4">
-          {favorites.forms.map((f) => {
-            const decrypted = f.data?.encrypted ? decryptData(f.data.encrypted) : f.data || {};
-            return (
-              <div key={f._id} className="col-md-4 mb-3">
-                <div className="card p-3 shadow-sm">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {f.blockName}</h6>
-                    <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("saved-forms", f._id)} />
-                  </div>
-                  <div className="text-muted mb-2">Submitted: {new Date(f.createdAt).toLocaleString()}</div>
-                  {Object.entries(decrypted).map(([field, value], i) => (
-                    <div key={i} style={{ fontSize: "0.85rem", marginBottom: "5px" }}>
-                      <strong>{field}:</strong>{" "}
-                      {typeof value === "string" && value.startsWith("data:image") ? (
-                        <img
-                          src={value}
-                          alt={field}
-                          style={{ width: "100%", maxHeight: "150px", objectFit: "contain", borderRadius: "6px" }}
-                        />
-                      ) : typeof value === "string" && value.startsWith("data:") ? (
-                        <a href={value} download style={{ color: "#007bff" }}>Download File</a>
-                      ) : (
-                        <span>{String(value)}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+  <>
+    <h5 className="mb-3 text-success">📄 Documents</h5>
+    <div className="row mb-4">
+      {favorites.forms.map((f) => {
+        const decrypted = f.data?.encrypted ? decryptData(f.data.encrypted) : f.data || {};
+        return (
+          <div key={f._id} className="col-md-4 mb-3">
+            <div className="card p-3 shadow-sm">
+              <div className="d-flex justify-content-between align-items-center">
+                <h6 className="text-danger">{f.blockName}</h6>
+                <FaHeart
+                  className="text-danger"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => toggleFavorite("forms", f._id)}
+                />
               </div>
-            );
-          })}
-        </div>
-      </>
-    )}
+
+              <div className="text-muted mb-2">
+                Submitted: {new Date(f.createdAt).toLocaleString()}
+              </div>
+
+              {Object.entries(decrypted).map(([field, value], i) => (
+                <div key={i} style={{ fontSize: "0.85rem", marginBottom: "5px" }}>
+                  <strong>{field}:</strong>{" "}
+                  {typeof value === "string" && value.startsWith("data:image") ? (
+                    <img
+                      src={value}
+                      alt={field}
+                      style={{
+                        width: "100%",
+                        maxHeight: "150px",
+                        objectFit: "contain",
+                        borderRadius: "6px",
+                      }}
+                    />
+                  ) : typeof value === "string" && value.startsWith("data:") ? (
+                    <a href={value} download style={{ color: "#007bff" }}>
+                      Download File
+                    </a>
+                  ) : (
+                    <span>{String(value)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </>
+)}
 
     {/* 💰 Wealth */}
     {(favorites.assets.length > 0 || favorites.investments.length > 0) && (
@@ -292,7 +307,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={a._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {a.name}</h6>
+                  <h6 className="text-danger"> {a.name}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("assets", a._id)} />
                 </div>
                 <div className="text-muted">Type: {a.type}</div>
@@ -305,7 +320,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={i._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {i.name}</h6>
+                  <h6 className="text-danger"> {i.name}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("investments", i._id)} />
                 </div>
                 <div className="text-muted">Type: {i.type}</div>
@@ -327,7 +342,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={n._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {n.nomineeName}</h6>
+                  <h6 className="text-danger"> {n.nomineeName}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("nominees", n._id)} />
                 </div>
                 <div><strong>Asset:</strong> {n.assetName || "Unnamed"}</div>
