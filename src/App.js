@@ -17,6 +17,8 @@ import SecuritySettings from "./components/SecuritySettings";
 import WealthDashboard from "./components/WealthDashboard";
 import PasswordManager from "./components/PasswordManager";
 import WealthPlanning from "./components/WealthPlanning";
+import SearchPage from "./components/SearchPage";
+import HealthRecords from "./components/HealthRecords";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -111,6 +113,26 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <WealthDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/search-page"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SearchPage/>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/health"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <HealthRecords/>
               </Layout>
             </ProtectedRoute>
           }
