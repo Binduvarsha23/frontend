@@ -211,7 +211,6 @@ const [recentUploads, setRecentUploads] = useState({
       {Object.values(favorites).some(arr => arr.length > 0) && (
   <div className="mt-4 px-4">
     <h4 className="mb-4">
-      <FaHeart className="text-danger me-2" />
       Your Favorites
     </h4>
 
@@ -226,7 +225,7 @@ const [recentUploads, setRecentUploads] = useState({
               <div key={p._id} className="col-md-4 mb-3">
                 <div className="card p-3 shadow-sm">
                   <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {decrypted.website || 'Password'}</h6>
+                    <h6 className="text-danger"> {decrypted.website || 'Password'}</h6>
                     <FaHeart
                       className="text-danger"
                       style={{ cursor: "pointer" }}
@@ -255,7 +254,7 @@ const [recentUploads, setRecentUploads] = useState({
               <div key={f._id} className="col-md-4 mb-3">
                 <div className="card p-3 shadow-sm">
                   <div className="d-flex justify-content-between align-items-center">
-                    <h6 className="text-danger"><FaHeart /> {f.blockName}</h6>
+                    <h6 className="text-danger"> {f.blockName}</h6>
                     <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("saved-forms", f._id)} />
                   </div>
                   <div className="text-muted mb-2">Submitted: {new Date(f.createdAt).toLocaleString()}</div>
@@ -292,7 +291,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={a._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {a.name}</h6>
+                  <h6 className="text-danger"> {a.name}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("assets", a._id)} />
                 </div>
                 <div className="text-muted">Type: {a.type}</div>
@@ -305,7 +304,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={i._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {i.name}</h6>
+                  <h6 className="text-danger"> {i.name}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("investments", i._id)} />
                 </div>
                 <div className="text-muted">Type: {i.type}</div>
@@ -327,7 +326,7 @@ const [recentUploads, setRecentUploads] = useState({
             <div key={n._id} className="col-md-4 mb-3">
               <div className="card p-3 shadow-sm">
                 <div className="d-flex justify-content-between align-items-center">
-                  <h6 className="text-danger"><FaHeart /> {n.nomineeName}</h6>
+                  <h6 className="text-danger">{n.nomineeName}</h6>
                   <FaHeart className="text-danger" style={{ cursor: "pointer" }} onClick={() => toggleFavorite("nominees", n._id)} />
                 </div>
                 <div><strong>Asset:</strong> {n.assetName || "Unnamed"}</div>
