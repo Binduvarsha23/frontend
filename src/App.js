@@ -96,7 +96,7 @@ function App() {
           }
         />
         <Route
-          path="/app/password"
+          path="/app/passwords"
           element={
             <ProtectedRoute>
               <Layout>
