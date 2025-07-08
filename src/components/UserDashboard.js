@@ -255,7 +255,7 @@ const [recentUploads, setRecentUploads] = useState({
           <div key={f._id} className="col-md-4 mb-3">
             <div className="card p-3 shadow-sm">
               <div className="d-flex justify-content-between align-items-center">
-                <h6 className="text-danger">{f.blockName}</h6>
+                <h6 className="text-danger"> {f.blockName}</h6>
                 <FaHeart
                   className="text-danger"
                   style={{ cursor: "pointer" }}
