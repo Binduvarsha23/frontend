@@ -20,7 +20,6 @@ import WealthPlanning from "./components/WealthPlanning";
 import SearchPage from "./components/SearchPage";
 import HealthRecords from "./components/HealthRecords";
 import SecurityGate from "./components/SecurityGate";
-import ResetPasswordPage from "./components/ResetPasswordPage";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
