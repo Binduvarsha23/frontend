@@ -41,6 +41,9 @@ const SecurityGate = ({ children }) => {
   const [showTokenEntryForm, setShowTokenEntryForm] = useState(false); // Controls visibility of token/new value inputs
   const [emailTokenInput, setEmailTokenInput] = useState('');
   const [newMethodValueInput, setNewMethodValueInput] = useState('');
+  // NEW STATE: To remember which method is being reset during the recovery flow,
+  // especially when coming back to the modal after an email has been sent.
+  const [methodToResetInRecovery, setMethodToResetInRecovery] = useState(null);
 
 
   const [securityQuestionsData, setSecurityQuestionsData] = useState([]); // Stores { question: string }
@@ -88,26 +91,54 @@ const SecurityGate = ({ children }) => {
       }
 
       setCurrentAuthMethod(chosenMethod);
-      if (chosenMethod && chosenMethod !== "biometric") {
-        setShowModal(true);
-      } else if (!chosenMethod) {
-        setShowModal(false);
-      }
       setError("");
-      // Reset all forgot password/reset states when re-fetching config
-      setForgotPasswordMode(false);
-      setForgotPasswordChoice(null);
-      setEmailSentMessage('');
-      setShowTokenEntryForm(false); // Crucial: Hide token form on new config fetch
-      setEmailTokenInput('');
-      setNewMethodValueInput('');
-      setPattern([]); // Clear pattern for reset flow
-      setInputValue(""); // Clear input value for main login
+
+      // --- MODIFIED LOGIC: Check for active reset token and auto-show token form ---
+      const hasActiveResetToken = cfg.passwordResetToken && cfg.passwordResetTokenExpiry && new Date(cfg.passwordResetTokenExpiry) > new Date();
+
+      if (hasActiveResetToken) {
+          // If there's an active token, automatically jump to the token entry form
+          setShowModal(true); // Ensure modal is open
+          setForgotPasswordMode(true);
+          setForgotPasswordChoice('email');
+          setShowTokenEntryForm(true);
+          // Set the method that was likely intended for reset (the currently active one for login)
+          setMethodToResetInRecovery(chosenMethod); //
+          setEmailSentMessage("A reset code was previously sent to your email. Please enter it below to continue."); // Inform user
+      } else if (chosenMethod && chosenMethod !== "biometric") {
+          setShowModal(true); // Standard login flow
+      } else if (!chosenMethod) {
+          setShowModal(false); // No method set, gate not needed
+      }
+
+      // Reset all forgot password/reset states when re-fetching config,
+      // UNLESS an active reset token was just detected and the form is shown.
+      if (!hasActiveResetToken) {
+          setForgotPasswordMode(false);
+          setForgotPasswordChoice(null);
+          setEmailSentMessage('');
+          setShowTokenEntryForm(false);
+          setEmailTokenInput('');
+          setNewMethodValueInput('');
+          setPattern([]); // Clear pattern for reset flow
+          setInputValue(""); // Clear input value for main login
+          setMethodToResetInRecovery(null); // Reset this too
+      }
     } catch (err) {
       console.error("Error loading security config", err);
       setError("Failed to load security configuration. Please try again.");
       setCurrentAuthMethod(null);
       setShowModal(false);
+      // Ensure all related states are reset on error
+      setForgotPasswordMode(false);
+      setForgotPasswordChoice(null);
+      setEmailSentMessage('');
+      setShowTokenEntryForm(false);
+      setEmailTokenInput('');
+      setNewMethodValueInput('');
+      setPattern([]);
+      setInputValue("");
+      setMethodToResetInRecovery(null);
     } finally {
       setLoading(false);
     }
@@ -188,6 +219,7 @@ const SecurityGate = ({ children }) => {
         setShowTokenEntryForm(false);
         setEmailTokenInput('');
         setNewMethodValueInput('');
+        setMethodToResetInRecovery(null); // Reset this too
       } else {
         setError("Verification failed. Please try again.");
       }
@@ -212,6 +244,7 @@ const SecurityGate = ({ children }) => {
     setEmailSentMessage(""); // Clear previous email messages
     setEmailTokenInput(''); // Clear token input
     setNewMethodValueInput(''); // Clear new value input
+    setMethodToResetInRecovery(null); // Reset this
 
     // Go to the mode where user chooses between email reset or security questions
     setForgotPasswordMode(true);
@@ -237,7 +270,8 @@ const SecurityGate = ({ children }) => {
         if (res.data.success) {
             setEmailSentMessage(res.data.message || `A reset code has been sent to your email (${user.email}). Please check your inbox.`);
             setError(""); // Clear any previous errors
-            setShowTokenEntryForm(true); // <--- IMPORTANT: Show the token entry form now
+            setShowTokenEntryForm(true); // Now show the token entry form
+            setMethodToResetInRecovery(currentAuthMethod); // Store which method was requested for reset
         } else {
             setError(res.data.message || "Failed to send reset email. Please try again.");
         }
@@ -254,40 +288,42 @@ const SecurityGate = ({ children }) => {
         return;
     }
 
+    // Use methodToResetInRecovery to determine input type for the new value,
+    // fallback to currentAuthMethod if methodToResetInRecovery somehow isn't set.
+    const methodForReset = methodToResetInRecovery || currentAuthMethod;
+
     // Determine the raw value for pattern if applicable
-    const valueToSend = currentAuthMethod === "pattern" ? pattern.join("") : newMethodValueInput;
+    const valueToSend = methodForReset === "pattern" ? pattern.join("") : newMethodValueInput;
 
     try {
         const res = await axios.post(`${API}/reset-method-with-token`, {
             userId: user.uid,
             token: emailTokenInput, // The token from the email
-            methodType: currentAuthMethod, // The method being reset
+            methodType: methodForReset, // The method being reset (password, pin, pattern)
             newValue: valueToSend, // The new PIN/Password/Pattern
         });
 
         if (res.data.success) {
             setError("");
-            // Use a custom modal or toast for feedback instead of alert()
-            // For now, we'll use a simple state update to show success message
-            setEmailSentMessage(`${currentAuthMethod} has been reset successfully!`);
+            setEmailSentMessage(`${methodForReset} has been reset successfully!`);
             setShowModal(false); // <--- Gate unlocked!
             // Reset all related states
             setInputValue("");
             setPattern([]);
             setForgotPasswordMode(false);
             setForgotPasswordChoice(null);
-            // setEmailSentMessage(''); // Keep message visible for a moment
             setShowTokenEntryForm(false);
             setEmailTokenInput('');
             setNewMethodValueInput('');
-            // Optional: Re-fetch config to ensure UI is updated with new hash/enabled state
+            setMethodToResetInRecovery(null); // Clear this
+            // Re-fetch config to ensure UI is updated and gate logic re-evaluates
             fetchConfig();
         } else {
-            setError(res.data.message || `Failed to reset ${currentAuthMethod}.`);
+            setError(res.data.message || `Failed to reset ${methodForReset}.`);
         }
     } catch (err) {
         console.error("Error resetting method with token:", err);
-        setError(err.response?.data?.message || `An error occurred while resetting ${currentAuthMethod}. Please try again.`);
+        setError(err.response?.data?.message || `An error occurred while resetting ${methodForReset}. Please try again.`);
     }
   };
 
@@ -318,6 +354,7 @@ const SecurityGate = ({ children }) => {
         setShowTokenEntryForm(false);
         setEmailTokenInput('');
         setNewMethodValueInput('');
+        setMethodToResetInRecovery(null); // Reset this too
       } else {
         setError("Incorrect answer. Please try again.");
       }
@@ -360,6 +397,7 @@ const SecurityGate = ({ children }) => {
           setShowTokenEntryForm(false);
           setEmailTokenInput('');
           setNewMethodValueInput('');
+          setMethodToResetInRecovery(null); // Reset this too
         }}
       >
         <Modal.Header>
@@ -398,6 +436,7 @@ const SecurityGate = ({ children }) => {
                   setShowTokenEntryForm(false); // Reset
                   setEmailTokenInput(''); // Reset
                   setNewMethodValueInput(''); // Reset
+                  setMethodToResetInRecovery(null); // Reset
                 }}>
                   Back to Login
                 </Button>
@@ -417,9 +456,10 @@ const SecurityGate = ({ children }) => {
                                 onChange={(e) => setEmailTokenInput(e.target.value)}
                             />
                         </Form.Group>
+                        {/* Use methodToResetInRecovery for input labels and types */}
                         <Form.Group className="mb-3">
-                            <Form.Label>Enter your new {currentAuthMethod}</Form.Label>
-                            {currentAuthMethod === "pattern" ? (
+                            <Form.Label>Enter your new {methodToResetInRecovery}</Form.Label>
+                            {methodToResetInRecovery === "pattern" ? (
                                 <div
                                     className="d-flex justify-content-center"
                                     style={{
@@ -447,14 +487,14 @@ const SecurityGate = ({ children }) => {
                                 </div>
                             ) : (
                                 <Form.Control
-                                    type={currentAuthMethod === "password" ? "password" : "text"}
-                                    inputMode={currentAuthMethod === "pin" ? "numeric" : undefined}
-                                    pattern={currentAuthMethod === "pin" ? "[0-9]*" : undefined}
-                                    placeholder={`Enter new ${currentAuthMethod}`}
+                                    type={methodToResetInRecovery === "password" ? "password" : "text"}
+                                    inputMode={methodToResetInRecovery === "pin" ? "numeric" : undefined}
+                                    pattern={methodToResetInRecovery === "pin" ? "[0-9]*" : undefined}
+                                    placeholder={`Enter new ${methodToResetInRecovery}`}
                                     value={newMethodValueInput}
                                     onChange={(e) => {
                                         setNewMethodValueInput(
-                                            currentAuthMethod === "pin"
+                                            methodToResetInRecovery === "pin"
                                                 ? e.target.value.replace(/\D/g, "")
                                                 : e.target.value
                                         );
@@ -465,7 +505,7 @@ const SecurityGate = ({ children }) => {
                         </Form.Group>
                         <div className="d-flex justify-content-between mt-3 flex-wrap">
                             <Button onClick={handleResetMethodWithToken} className="mb-2 mb-md-0">
-                                Reset {currentAuthMethod}
+                                Reset {methodToResetInRecovery}
                             </Button>
                             <Button variant="outline-secondary" onClick={() => {
                                 setEmailTokenInput('');
@@ -475,6 +515,7 @@ const SecurityGate = ({ children }) => {
                                 setForgotPasswordChoice(null);
                                 setError('');
                                 setPattern([]); // Clear pattern for reset flow
+                                setMethodToResetInRecovery(null); // Reset
                             }}>
                                 Back to Options
                             </Button>
