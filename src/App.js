@@ -19,6 +19,8 @@ import PasswordManager from "./components/PasswordManager";
 import WealthPlanning from "./components/WealthPlanning";
 import SearchPage from "./components/SearchPage";
 import HealthRecords from "./components/HealthRecords";
+import SecurityGate from "./components/SecurityGate";
+import ResetPasswordPage from "./components/ResetPasswordPage";
 
 function ProtectedRoute({ children }) {
   const [user, loading] = useAuthState(auth);
@@ -39,9 +41,11 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <Dashboard />
               </Layout>
+              </SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -49,9 +53,11 @@ function App() {
           path="/dashboard/block/:blockId"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <BlockForm />
               </Layout>
+              </SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -59,9 +65,10 @@ function App() {
           path="/dashboard/custom/:blockId"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <CustomBlockForm />
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -71,9 +78,11 @@ function App() {
           path="/app/dashboard"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <UserDashboard />
               </Layout>
+              </SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -81,9 +90,10 @@ function App() {
           path="/app/security"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <SecuritySettings />
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -91,9 +101,10 @@ function App() {
           path="/app/family"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <WealthPlanning />
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -101,9 +112,10 @@ function App() {
           path="/app/passwords"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <PasswordManager/>
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -111,9 +123,10 @@ function App() {
           path="/app/wealth"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <WealthDashboard />
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -121,9 +134,10 @@ function App() {
           path="/app/search-page"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <SearchPage/>
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -131,9 +145,10 @@ function App() {
           path="/app/health"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <HealthRecords/>
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
@@ -141,9 +156,10 @@ function App() {
           path="/app/:section"
           element={
             <ProtectedRoute>
+              <SecurityGate>
               <Layout>
                 <UnderConstruction />
-              </Layout>
+              </Layout></SecurityGate>
             </ProtectedRoute>
           }
         />
