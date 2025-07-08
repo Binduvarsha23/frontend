@@ -5,7 +5,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../firebase";
 import bcrypt from "bcryptjs";
 import PatternLock from "react-pattern-lock";
-import { format } from 'date-fns'; // Import date-fns for easy date formatting
+import { format } from 'date-fns'; // Import 
+
 
 const API = "https://backend-pbmi.onrender.com/api/security-config"; // Ensure this is your backend URL
 
@@ -22,25 +23,8 @@ const FIXED_SECURITY_QUESTIONS = [
   "What is your favorite movie?",
 ];
 
-// Helper functions for ArrayBuffer to Base64URL string conversion
-// These are simplified versions of what @simplewebauthn/browser provides
-const toBase64URL = (buffer) => {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-};
-
-const fromBase64URL = (base64url) => {
-  const padded = base64url.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((base64url.length * 3) % 4);
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
-};
-
+// Removed custom toBase64URL and fromBase64URL functions,
+// as base64urlToBuffer from @simplewebauthn/browser/helpers will be used.
 
 const SecuritySettings = () => {
   const [user] = useAuthState(auth);
@@ -159,6 +143,18 @@ const SecuritySettings = () => {
     }
   };
 
+
+const base64urlToBuffer = (base64url) => {
+  const padding = '='.repeat((4 - base64url.length % 4) % 4);
+  const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const str = atob(base64);
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; ++i) {
+    bytes[i] = str.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
   const tryBiometric = async (cfg) => {
     if (!window.PublicKeyCredential) {
       setError("Biometric authentication is not supported on this device. Please use another method.");
@@ -167,13 +163,14 @@ const SecuritySettings = () => {
     }
 
     try {
+      setError("");
       // 1. Get authentication options from backend
       const { data: options } = await axios.get(`${API}/generate-authentication-options/${user.uid}`);
 
-      // Convert challenge from Base64URL to ArrayBuffer
-      options.challenge = fromBase64URL(options.challenge);
+      // Convert challenge from Base64URL to ArrayBuffer using base64urlToBuffer
+      options.challenge = base64urlToBuffer(options.challenge);
       options.allowCredentials.forEach(cred => {
-          cred.id = fromBase64URL(cred.id);
+          cred.id = base64urlToBuffer(cred.id);
       });
 
       // 2. Request biometric authentication from the browser
@@ -187,12 +184,12 @@ const SecuritySettings = () => {
         method: "biometric",
         authenticationResponse: {
             id: authenticationResponse.id,
-            rawId: toBase64URL(authenticationResponse.rawId), // Convert to Base64URL
+            rawId: base64urlToBuffer(authenticationResponse.rawId), // Convert to Base64URL
             response: {
-                authenticatorData: toBase64URL(authenticationResponse.response.authenticatorData),
-                clientDataJSON: toBase64URL(authenticationResponse.response.clientDataJSON),
-                signature: toBase64URL(authenticationResponse.response.signature),
-                userHandle: authenticationResponse.response.userHandle ? toBase64URL(authenticationResponse.response.userHandle) : null,
+                authenticatorData: base64urlToBuffer(authenticationResponse.response.authenticatorData),
+                clientDataJSON: base64urlToBuffer(authenticationResponse.response.clientDataJSON),
+                signature: base64urlToBuffer(authenticationResponse.response.signature),
+                userHandle: authenticationResponse.response.userHandle ? base64urlToBuffer(authenticationResponse.response.userHandle) : null,
             },
             type: authenticationResponse.type,
         },
@@ -243,11 +240,11 @@ const SecuritySettings = () => {
                 // 1. Get registration options from backend
                 const { data: options } = await axios.get(`${API}/generate-registration-options/${user.uid}`);
 
-                // Convert challenge from Base64URL to ArrayBuffer
-                options.challenge = fromBase64URL(options.challenge);
-                options.user.id = fromBase64URL(options.user.id);
+                // Convert challenge from Base64URL to ArrayBuffer using base64urlToBuffer
+                options.challenge = base64urlToBuffer(options.challenge);
+                options.user.id = base64urlToBuffer(options.user.id);
                 options.excludeCredentials.forEach(cred => {
-                    cred.id = fromBase64URL(cred.id);
+                    cred.id = base64urlToBuffer(cred.id);
                 });
 
                 // 2. Request biometric registration from the browser
@@ -259,10 +256,10 @@ const SecuritySettings = () => {
                 await axios.post(`${API}/verify-registration/${user.uid}`, {
                     attestationResponse: {
                         id: attestationResponse.id,
-                        rawId: toBase64URL(attestationResponse.rawId), // Convert to Base64URL
+                        rawId: base64urlToBuffer(attestationResponse.rawId), // Convert to Base64URL
                         response: {
-                            attestationObject: toBase64URL(attestationResponse.response.attestationObject),
-                            clientDataJSON: toBase64URL(attestationResponse.response.clientDataJSON),
+                            attestationObject: base64urlToBuffer(attestationResponse.response.attestationObject),
+                            clientDataJSON: base64urlToBuffer(attestationResponse.response.clientDataJSON),
                         },
                         type: attestationResponse.type,
                     }
