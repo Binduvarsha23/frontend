@@ -38,7 +38,7 @@ const SecurityGate = ({ children }) => {
   const [emailSentMessage, setEmailSentMessage] = useState(''); // Message after sending email
 
   // New states for Email Reset - Token Entry
-  const [showTokenEntryForm, setShowTokenEntryForm] = useState(false);
+  const [showTokenEntryForm, setShowTokenEntryForm] = useState(false); // Controls visibility of token/new value inputs
   const [emailTokenInput, setEmailTokenInput] = useState('');
   const [newMethodValueInput, setNewMethodValueInput] = useState('');
 
@@ -98,10 +98,11 @@ const SecurityGate = ({ children }) => {
       setForgotPasswordMode(false);
       setForgotPasswordChoice(null);
       setEmailSentMessage('');
-      setShowTokenEntryForm(false);
+      setShowTokenEntryForm(false); // Crucial: Hide token form on new config fetch
       setEmailTokenInput('');
       setNewMethodValueInput('');
-
+      setPattern([]); // Clear pattern for reset flow
+      setInputValue(""); // Clear input value for main login
     } catch (err) {
       console.error("Error loading security config", err);
       setError("Failed to load security configuration. Please try again.");
@@ -266,14 +267,16 @@ const SecurityGate = ({ children }) => {
 
         if (res.data.success) {
             setError("");
-            alert(`${currentAuthMethod} has been reset successfully!`); // Use alert for clear user feedback
+            // Use a custom modal or toast for feedback instead of alert()
+            // For now, we'll use a simple state update to show success message
+            setEmailSentMessage(`${currentAuthMethod} has been reset successfully!`);
             setShowModal(false); // <--- Gate unlocked!
             // Reset all related states
             setInputValue("");
             setPattern([]);
             setForgotPasswordMode(false);
             setForgotPasswordChoice(null);
-            setEmailSentMessage('');
+            // setEmailSentMessage(''); // Keep message visible for a moment
             setShowTokenEntryForm(false);
             setEmailTokenInput('');
             setNewMethodValueInput('');
