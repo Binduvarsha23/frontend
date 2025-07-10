@@ -26,40 +26,64 @@ const SecurityGate = ({ children }) => {
     if (user) fetchConfig();
   }, [user]);
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && config) {
-        setIsVerified(false);
-        setShowModal(true);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [config]);
+useEffect(() => {
+  const onVisible = async () => {
+    if (document.visibilityState === "visible" && user) {
+      try {
+        const res = await axios.get(`${API}/${user.uid}`);
+        const latestCfg = res.data.config;
+        setConfig(latestCfg);
 
-  const fetchConfig = async () => {
-    try {
-      const res = await axios.get(`${API}/${user.uid}`);
-      if (res.data.setupRequired) {
-        setIsVerified(true);
-        return;
-      }
-      const cfg = res.data.config;
-      setConfig(cfg);
+        const methods = ["pin", "password", "pattern"];
+        const lastEnabled = methods.findLast(method => latestCfg[`${method}Enabled`]);
 
-      if (cfg.pinEnabled) setAuthMethod("pin");
-      else if (cfg.passwordEnabled) setAuthMethod("password");
-      else if (cfg.patternEnabled) setAuthMethod("pattern");
-      else {
-        setIsVerified(true);
-        return;
+        if (lastEnabled) {
+          setAuthMethod(lastEnabled);
+          setIsVerified(false);
+          setShowModal(true);
+        } else {
+          setIsVerified(true);
+          setShowModal(false);
+        }
+      } catch (err) {
+        console.error("Error refetching config on tab switch", err);
+        setIsVerified(true); // fallback
       }
-      setShowModal(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to fetch security config.");
     }
   };
+
+  document.addEventListener("visibilitychange", onVisible);
+  return () => document.removeEventListener("visibilitychange", onVisible);
+}, [user]);
+
+
+const fetchConfig = async () => {
+  try {
+    const res = await axios.get(`${API}/${user.uid}`);
+    if (res.data.setupRequired) {
+      setIsVerified(true);
+      return;
+    }
+
+    const cfg = res.data.config;
+    setConfig(cfg);
+
+    const methods = ["pin", "password", "pattern"];
+    const lastEnabled = methods.findLast(method => cfg[`${method}Enabled`]);
+
+    if (lastEnabled) {
+      setAuthMethod(lastEnabled);
+      setShowModal(true);
+    } else {
+      setIsVerified(true);
+      setShowModal(false);
+    }
+  } catch (err) {
+    console.error(err);
+    setError("Failed to fetch security config.");
+  }
+};
+
 
   const verify = async () => {
     try {
