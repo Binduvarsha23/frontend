@@ -56,8 +56,15 @@ const [biometricInProgress, setBiometricInProgress] = useState(false);
   const checkSecurity = async () => {
     try {
       // 1. Fetch security config first
-      const res = await axios.get(`${API}/${user.uid}`); // ✅ CORRECT
-      const config = res.data;
+     const res = await axios.get(`${API}/${user.uid}`);
+const response = res.data;
+
+if (response.setupRequired) {
+  setIsVerified(true); // Let them proceed without auth
+  return;
+}
+
+const config = response.config; // ✅ correct one to use
 
       // 2. If any of the traditional methods are enabled, show modal for manual input
       if (config.passwordEnabled || config.pinEnabled || config.patternEnabled) {
