@@ -44,11 +44,53 @@ const SecurityGate = ({ children }) => {
   // NEW STATE: To remember which method is being reset during the recovery flow,
   // especially when coming back to the modal after an email has been sent.
   const [methodToResetInRecovery, setMethodToResetInRecovery] = useState(null);
+const [isVerified, setIsVerified] = useState(false);
+const [biometricInProgress, setBiometricInProgress] = useState(false);
 
 
   const [securityQuestionsData, setSecurityQuestionsData] = useState([]); // Stores { question: string }
   const [selectedQuestion, setSelectedQuestion] = useState("");
   const [answerToQuestion, setAnswerToQuestion] = useState("");
+
+  useEffect(() => {
+  const checkSecurity = async () => {
+    try {
+      // 1. Fetch security config first
+      const res = await axios.get(`${API}/${user.uid}`); // ✅ CORRECT
+      const config = res.data;
+
+      // 2. If any of the traditional methods are enabled, show modal for manual input
+      if (config.passwordEnabled || config.pinEnabled || config.patternEnabled) {
+        setShowModal(true); // show modal to enter credentials
+        return;
+      }
+
+      // 3. If biometric is enabled and credentials exist, try biometric
+      if (config.biometricEnabled && config.biometricCredentials?.length) {
+        try {
+          await tryBiometric(config); // Trigger biometric auth
+          setIsVerified(true); // ✅ Gate passed
+        } catch (e) {
+          console.error("Biometric check failed", e);
+          setError("Biometric failed. Try another method.");
+          setShowModal(true); // fallback modal
+        }
+        return;
+      }
+
+      // 4. No auth required if no method is enabled
+      setIsVerified(true);
+    } catch (err) {
+      console.error("Error checking security config", err);
+      setError("Failed to load security config.");
+      setShowModal(true); // fallback modal
+    }
+  };
+
+  if (user) {
+    checkSecurity();
+  }
+}, [user]);
 
   useEffect(() => {
     if (!userLoading && user) {
@@ -80,9 +122,11 @@ const SecurityGate = ({ children }) => {
 
       let chosenMethod = null;
       if (cfg.biometricEnabled && biometricAvailable) {
-        chosenMethod = "biometric";
-        tryBiometric(cfg);
-      } else if (cfg.patternEnabled) {
+  setCurrentAuthMethod("biometric");
+  await tryBiometric(cfg); // ⬅️ Await this!
+  setIsVerified(true);     // ⬅️ Only mark verified 
+  return;                  // ⬅️ Exit early to prevent modal
+} else if (cfg.patternEnabled) {
         chosenMethod = "pattern";
       } else if (cfg.passwordEnabled) {
         chosenMethod = "password";
@@ -144,39 +188,71 @@ const SecurityGate = ({ children }) => {
     }
   };
 
-  const tryBiometric = async (cfg) => {
-    if (!biometricSupported) {
-      setError("Biometric authentication is not supported on this device.");
-      fallbackToOtherAuth(cfg);
-      return;
-    }
-    try {
-      setError("");
-      const result = await navigator.credentials.get({
-        publicKey: {
-          challenge: new Uint8Array(32),
-          timeout: 60000,
-          userVerification: "preferred",
-        },
-      });
+const tryBiometric = async (cfg) => {
+  try {
+    setBiometricInProgress(true);
+    setError("");
 
-      if (result) {
-        await axios.post(`${API}/verify`, {
-          userId: user.uid,
-          method: "biometric",
-        });
-        setShowModal(false);
-        setError("");
-      } else {
-        setError("Biometric authentication failed.");
-        fallbackToOtherAuth(cfg);
-      }
-    } catch (err) {
-      console.error("Biometric API error:", err);
-      setError("Biometric authentication failed or cancelled.");
-      fallbackToOtherAuth(cfg);
-    }
-  };
+    const { data: options } = await axios.get(`${API}/biometric/generate-authentication-options/${user.uid}`);
+
+    // 🔧 Convert challenge and credential IDs properly
+    options.challenge = bufferDecode(options.challenge);
+    options.allowCredentials = options.allowCredentials.map(cred => ({
+      ...cred,
+      id: bufferDecode(cred.id),
+    }));
+
+    // ✅ This will now trigger Windows Hello fingerprint scan
+   const assertion = await navigator.credentials.get({
+  publicKey: {
+    ...options,
+    userVerification: "required", // Force Windows Hello / biometrics
+    allowCredentials: options.allowCredentials.map((cred) => ({
+      ...cred,
+      transports: ["internal"], // 👈 Enforce built-in biometric like fingerprint
+    })),
+  },
+});
+
+    const response = {
+      id: assertion.id,
+      rawId: bufferEncode(assertion.rawId),
+      type: assertion.type,
+      response: {
+        authenticatorData: bufferEncode(assertion.response.authenticatorData),
+        clientDataJSON: bufferEncode(assertion.response.clientDataJSON),
+        signature: bufferEncode(assertion.response.signature),
+        userHandle: assertion.response.userHandle ? bufferEncode(assertion.response.userHandle) : null,
+      },
+    };
+
+    await axios.post(`${API}/biometric/verify`, {
+      userId: user.uid,
+      authenticationResponse: response,
+    });
+
+    setShowModal(false);
+    setIsVerified(true);
+  } catch (err) {
+    console.error("Biometric authentication failed:", err);
+    setError("Biometric authentication failed. Falling back to another method.");
+    fallbackToOtherAuth(cfg);
+  } finally {
+    setBiometricInProgress(false);
+  }
+};
+
+// Add this at the top of your component or in a utils file
+function bufferEncode(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+function bufferDecode(value) {
+  return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+}
+
 
   const fallbackToOtherAuth = (cfg) => {
     if (cfg.patternEnabled) {
@@ -188,6 +264,8 @@ const SecurityGate = ({ children }) => {
     } else {
       setCurrentAuthMethod(null);
       setShowModal(false);
+      setIsVerified(false); 
+
       setError("No alternative authentication method available or enabled.");
       return;
     }
@@ -364,15 +442,16 @@ const SecurityGate = ({ children }) => {
     }
   };
 
-  if (userLoading || loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "100vh" }}>
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </Spinner>
-      </div>
-    );
-  }
+if (userLoading || loading || biometricInProgress || !isVerified) {
+  return (
+    <div className="d-flex flex-column justify-content-center align-items-center" style={{ minHeight: "100vh" }}>
+      <Spinner animation="border" role="status" />
+      {biometricInProgress && (
+        <p className="mt-3 text-center text-muted">Verifying with biometric authentication...</p>
+      )}
+    </div>
+  );
+}
 
   if (!currentAuthMethod && !showModal) {
     return <>{children}</>;
@@ -674,7 +753,8 @@ const SecurityGate = ({ children }) => {
         </Modal.Body>
       </Modal>
 
-      {!showModal && children}
+     {!showModal && isVerified && children}
+
     </>
   );
 };
