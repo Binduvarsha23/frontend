@@ -93,7 +93,11 @@ const SecuritySettings = () => {
   const fetchConfig = async (requireVerify = false) => {
     try {
       const res = await axios.get(`${API}/${user.uid}`);
-      const cfg = res.data;
+if (res.data.setupRequired) {
+  await axios.post(API, { userId: user.uid }); // Create new config
+  return fetchConfig(requireVerify); // Fetch again
+}
+const cfg = res.data.config;
       setConfig(cfg);
 
       if (cfg.securityQuestions && cfg.securityQuestions.length > 0) {
