@@ -32,8 +32,11 @@ const toBase64URL = (buffer) => {
 };
 
 const fromBase64URL = (base64url) => {
-  const padded = base64url.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((base64url.length * 3) % 4);
-  const binary = atob(padded);
+  // Convert from base64url to base64
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  // Pad the string to a multiple of 4
+  while (base64.length % 4) base64 += '=';
+  const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -67,18 +70,7 @@ const SecuritySettings = () => {
 
   useEffect(() => {
     if (user) {
-      axios
-        .get(`${API}/check-verification/${user.uid}`)
-        .then((res) => {
-          if (res.data.verifiedRecently) {
-            fetchConfig();
-          } else {
             fetchConfig(true);
-          }
-        })
-        .catch(() => {
-          fetchConfig(true);
-        });
     }
   }, [user]);
 
@@ -159,61 +151,58 @@ const SecuritySettings = () => {
     }
   };
 
-  const tryBiometric = async (cfg) => {
-    if (!window.PublicKeyCredential) {
-      setError("Biometric authentication is not supported on this device. Please use another method.");
-      fallback(cfg);
-      return;
-    }
+const tryBiometric = async (cfg) => {
+  if (!window.PublicKeyCredential) {
+    setError("Biometric authentication is not supported on this device. Please use another method.");
+    fallback(cfg);
+    return;
+  }
 
-    try {
-      // 1. Get authentication options from backend
-      const { data: options } = await axios.get(`${API}/generate-authentication-options/${user.uid}`);
+  try {
+    // ✅ FIXED: Use the correct endpoint for authentication
+    const { data: options } = await axios.get(`${API}/biometric/generate-authentication-options/${user.uid}`);
 
-      // Convert challenge from Base64URL to ArrayBuffer
-      options.challenge = fromBase64URL(options.challenge);
-      options.allowCredentials.forEach(cred => {
-          cred.id = fromBase64URL(cred.id);
-      });
+    // Convert challenge and credential IDs from Base64URL to ArrayBuffer
+    options.challenge = fromBase64URL(options.challenge);
+    options.allowCredentials.forEach(cred => {
+        cred.id = fromBase64URL(cred.id);
+    });
 
-      // 2. Request biometric authentication from the browser
-      const authenticationResponse = await navigator.credentials.get({
-        publicKey: options,
-      });
+    const authenticationResponse = await navigator.credentials.get({
+      publicKey: options,
+    });
 
-      // 3. Send the authentication response to backend for verification
-      await axios.post(`${API}/verify`, {
-        userId: user.uid,
-        method: "biometric",
-        authenticationResponse: {
-            id: authenticationResponse.id,
-            rawId: toBase64URL(authenticationResponse.rawId), // Convert to Base64URL
-            response: {
-                authenticatorData: toBase64URL(authenticationResponse.response.authenticatorData),
-                clientDataJSON: toBase64URL(authenticationResponse.response.clientDataJSON),
-                signature: toBase64URL(authenticationResponse.response.signature),
-                userHandle: authenticationResponse.response.userHandle ? toBase64URL(authenticationResponse.response.userHandle) : null,
-            },
-            type: authenticationResponse.type,
+    await axios.post(`${API}/biometric/verify`, {
+      userId: user.uid,
+      authenticationResponse: {
+        id: authenticationResponse.id,
+        rawId: toBase64URL(authenticationResponse.rawId),
+        response: {
+          authenticatorData: toBase64URL(authenticationResponse.response.authenticatorData),
+          clientDataJSON: toBase64URL(authenticationResponse.response.clientDataJSON),
+          signature: toBase64URL(authenticationResponse.response.signature),
+          userHandle: authenticationResponse.response.userHandle ? toBase64URL(authenticationResponse.response.userHandle) : null,
         },
-      });
+        type: authenticationResponse.type,
+      },
+    });
 
-      setMode("");
-      fetchConfig();
-      setError("");
-      setSuccessMessage("Biometric verification successful.");
-    } catch (err) {
-      console.error("Biometric authentication failed:", err);
-      if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-        setError("Biometric authentication cancelled or denied. Please try another method.");
-      } else if (err.response?.data?.message) {
-        setError(`Biometric authentication failed: ${err.response.data.message}`);
-      } else {
-        setError("Biometric authentication failed. Please use another method.");
-      }
-      fallback(cfg);
+    setMode("");
+    fetchConfig();
+    setError("");
+    setSuccessMessage("Biometric verification successful.");
+  } catch (err) {
+    console.error("Biometric authentication failed:", err);
+    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+      setError("Biometric authentication cancelled or denied. Please try another method.");
+    } else if (err.response?.data?.message) {
+      setError(`Biometric authentication failed: ${err.response.data.message}`);
+    } else {
+      setError("Biometric authentication failed. Please use another method.");
     }
-  };
+    fallback(cfg);
+  }
+};
 
   const fallback = (cfg) => {
     if (cfg.patternEnabled) setMode("verify-pattern");
@@ -241,7 +230,7 @@ const SecuritySettings = () => {
             }
             try {
                 // 1. Get registration options from backend
-                const { data: options } = await axios.get(`${API}/generate-registration-options/${user.uid}`);
+                const { data: options } = await axios.get(`${API}/biometric/generate-registration-options/${user.uid}`);
 
                 // Convert challenge from Base64URL to ArrayBuffer
                 options.challenge = fromBase64URL(options.challenge);
@@ -256,7 +245,7 @@ const SecuritySettings = () => {
                 });
 
                 // 3. Send the registration response to backend for verification and saving
-                await axios.post(`${API}/verify-registration/${user.uid}`, {
+                await axios.post(`${API}/biometric/verify-registration/${user.uid}`, {
                     attestationResponse: {
                         id: attestationResponse.id,
                         rawId: toBase64URL(attestationResponse.rawId), // Convert to Base64URL
