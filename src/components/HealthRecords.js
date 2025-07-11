@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Button, Modal, Form, Card, Row, Col, Spinner } from 'react-bootstrap';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
-import { FaTrash, FaEdit, FaFileAlt, FaUpload, FaPlus } from 'react-icons/fa';
+import { FaTrash, FaEdit, FaFileAlt, FaUpload, FaPlus, FaHeart } from 'react-icons/fa'; // Import FaHeart
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -11,6 +11,66 @@ const blockOptions = [
   'Prescriptions', 'Lab Reports', 'Scans',
   'Vaccinations', 'Doctor Notes', 'Bills'
 ];
+
+// File Preview Modal Component
+const FilePreviewModal = ({ show, onHide, file }) => {
+  if (!file) return null;
+
+  const getPreviewContent = () => {
+    if (!file.fileData) {
+      return <p>No file data available for preview. Please ensure the file was uploaded correctly.</p>;
+    }
+
+    const parts = file.fileData.split(';');
+    const mimeType = parts[0].split(':')[1];
+
+    if (mimeType.startsWith('image/')) {
+      return <img src={file.fileData} alt={file.fileName} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />;
+    } else if (mimeType === 'application/pdf') {
+      // Use embed for PDFs for better browser compatibility in modals
+      return <embed src={file.fileData} type="application/pdf" width="100%" height="500px" />;
+    } else if (mimeType.startsWith('text/')) {
+        // Decode base64 text for preview
+        try {
+            const base64Content = file.fileData.split(',')[1];
+            const decodedContent = atob(base64Content);
+            return (
+                <div style={{ maxHeight: '500px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', border: '1px solid #eee', padding: '10px', backgroundColor: '#f9f9f9', textAlign: 'left' }}>
+                    {decodedContent}
+                </div>
+            );
+        } catch (e) {
+            console.error("Error decoding text file for preview:", e);
+            return <p>Could not decode text file content for preview. Please download the file to view it.</p>;
+        }
+    } else {
+      // Fallback for unsupported types
+      return (
+        <div className="text-center">
+          <p>Preview not available for this file type (<code>{mimeType}</code>).</p>
+          <p>Commonly supported preview types include images (JPG, PNG), PDFs, and plain text files.</p>
+          <p>Please click "Download" to view the file in your default application.</p>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <Modal show={show} onHide={onHide} size="lg" centered>
+      <Modal.Header closeButton>
+        <Modal.Title>{file.fileName}</Modal.Title>
+      </Modal.Header>
+      <Modal.Body className="text-center">
+        {getPreviewContent()}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onHide}>Close</Button>
+        <Button variant="primary" href={file.fileData} download={file.fileName}>Download</Button>
+      </Modal.Footer>
+    </Modal>
+  );
+};
+
 
 const HealthRecords = () => {
   const [userId, setUserId] = useState('');
@@ -24,6 +84,8 @@ const HealthRecords = () => {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [showFilePreviewModal, setShowFilePreviewModal] = useState(false); // New state for preview modal
+  const [fileToPreview, setFileToPreview] = useState(null); // New state to hold file data for preview
 
   useEffect(() => {
     onAuthStateChanged(auth, (user) => {
@@ -39,13 +101,23 @@ const HealthRecords = () => {
   }, [userId]);
 
   const fetchRecords = async () => {
-    const res = await axios.get(`https://backend-pbmi.onrender.com/api/health-records?userId=${userId}`);
-    setRecords(res.data);
+    try {
+      const res = await axios.get(`https://backend-pbmi.onrender.com/api/health-records?userId=${userId}`);
+      setRecords(res.data);
+    } catch (err) {
+      console.error('Error fetching health records:', err);
+      toast.error("Failed to fetch health records.");
+    }
   };
 
   const fetchCustomBlocks = async () => {
-    const res = await axios.get(`https://backend-pbmi.onrender.com/api/health-blocks?userId=${userId}`);
-    setCustomBlocks(res.data);
+    try {
+      const res = await axios.get(`https://backend-pbmi.onrender.com/api/health-blocks?userId=${userId}`);
+      setCustomBlocks(res.data);
+    } catch (err) {
+      console.error('Error fetching custom blocks:', err);
+      toast.error("Failed to fetch custom blocks.");
+    }
   };
 
   const handleFileChange = (e) => {
@@ -56,7 +128,7 @@ const HealthRecords = () => {
     reader.onloadend = () => {
       const mime = file.type || 'application/octet-stream';
       const base64 = `data:${mime};base64,${reader.result.split(',')[1]}`;
-      setFormData(prev => ({ ...prev, fileData: base64 }));
+      setFormData(prev => ({ ...prev, fileName: file.name, fileData: base64 })); // Pre-fill filename
     };
     reader.readAsDataURL(file);
   };
@@ -70,32 +142,56 @@ const HealthRecords = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.fileName || !formData.fileData) return;
+    if (!formData.fileName || !formData.fileData) {
+      toast.error("File name and file data are required.");
+      return;
+    }
 
     setLoading(true);
+    const originalRecords = records; // Store original state for rollback
+    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
+
     try {
       if (editId) {
+        // For edit, we update the existing record optimistically
+        setRecords(prev =>
+          prev.map(r => r._id === editId ? { ...r, ...formData, blockName: selectedBlock } : r)
+        );
+        toast.info("Updating file...");
         await axios.patch(`https://backend-pbmi.onrender.com/api/health-records/${editId}`, {
           ...formData,
           blockName: selectedBlock
         });
-        setRecords(prev =>
-          prev.map(r => r._id === editId ? { ...r, ...formData, blockName: selectedBlock } : r)
-        );
         toast.success("File updated successfully ✅");
       } else {
+        // For add, we add a temporary record optimistically
+        const newRecordOptimistic = {
+          _id: tempId,
+          fileName: formData.fileName,
+          fileData: formData.fileData,
+          blockName: selectedBlock,
+          userId,
+          createdAt: new Date().toISOString(), // Add a timestamp for consistent display
+          favorite: false // Default favorite status
+        };
+        setRecords(prev => [...prev, newRecordOptimistic]);
+        toast.info("Uploading file...");
+
         const res = await axios.post(`https://backend-pbmi.onrender.com/api/health-records/upload`, {
           ...formData,
           blockName: selectedBlock,
           userId,
         });
-        setRecords(prev => [...prev, res.data]);
+        // Replace the optimistic record with the actual one from the backend
+        setRecords(prev => prev.map(r => r._id === tempId ? res.data.file : r));
         toast.success("File uploaded successfully ✅");
       }
       setShowModal(false);
     } catch (err) {
       console.error('Upload failed:', err);
       toast.error("Upload failed ❌");
+      // Rollback optimistic update
+      setRecords(originalRecords); // Revert to original state
     } finally {
       setLoading(false);
     }
@@ -112,54 +208,72 @@ const HealthRecords = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this file?")) return;
-
     setDeletingId(id);
+    const originalRecords = records; // Store original state for rollback
+    // Optimistic UI update for deletion
     setRecords(prev => prev.filter(r => r._id !== id));
+    toast.info("Deleting file...");
 
     try {
       await axios.delete(`https://backend-pbmi.onrender.com/api/health-records/${id}`);
       toast.success("File deleted 🗑️");
     } catch (err) {
       toast.error("Delete failed ❌");
-      fetchRecords(); // rollback
+      setRecords(originalRecords); // Rollback by re-fetching if delete fails
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleViewFile = (fileData) => {
-    if (!fileData || !fileData.startsWith("data:")) {
-      toast.warning("File is still loading or corrupted");
-      return;
-    }
-    const newWindow = window.open();
-    if (newWindow) {
-      newWindow.document.write(
-        `<iframe src="${fileData}" frameborder="0" style="width:100%;height:100%;" allowfullscreen></iframe>`
-      );
-      newWindow.document.title = "Health Record Viewer";
-    } else {
-      toast.error("Popup blocked. Please allow popups for this site.");
-    }
+  const handleViewFile = (file) => { // Now accepts the full file object
+    setFileToPreview(file);
+    setShowFilePreviewModal(true);
   };
 
   const handleDeleteBlock = async (blockName) => {
     const block = customBlocks.find(b => b.blockName === blockName);
     if (!block) return;
-    if (!window.confirm(`Delete "${blockName}" and all its files?`)) return;
+
+    const originalCustomBlocks = customBlocks; // Store original state for rollback
+    const originalRecords = records; // Store original records for rollback
 
     try {
+      // Optimistic UI update for block deletion
       setCustomBlocks(prev => prev.filter(cb => cb.blockName !== blockName));
       setRecords(prev => prev.filter(r => r.blockName !== blockName));
+      toast.info(`Deleting "${blockName}" block...`);
 
       await axios.delete(`https://backend-pbmi.onrender.com/api/health-blocks/${block._id}`);
       toast.success("Custom block deleted 🗑️");
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete block ❌");
-      fetchCustomBlocks();
-      fetchRecords();
+      setCustomBlocks(originalCustomBlocks); // Rollback
+      setRecords(originalRecords); // Rollback
+    }
+  };
+
+  // New function to handle toggling favorite status
+  const handleFavoriteToggle = async (id, currentFavorite) => {
+    // Optimistic UI update: immediately change the color
+    setRecords(prevRecords =>
+      prevRecords.map(record =>
+        record._id === id ? { ...record, favorite: !currentFavorite } : record
+      )
+    );
+
+    try {
+      await axios.patch(`https://backend-pbmi.onrender.com/api/health-records/${id}/favorite`);
+      toast.success(currentFavorite ? "Removed from favorites" : "Added to favorites ❤️");
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      toast.error("Failed to update favorite status ❌");
+      // Rollback UI if API call fails
+      setRecords(prevRecords =>
+        prevRecords.map(record =>
+          record._id === id ? { ...record, favorite: currentFavorite } : record
+        )
+      );
     }
   };
 
@@ -171,20 +285,39 @@ const HealthRecords = () => {
 
   const handleCreateBlock = async (e) => {
     e.preventDefault();
-    if (!newBlockName.trim()) return;
+    if (!newBlockName.trim()) {
+      toast.error("Block name cannot be empty.");
+      return;
+    }
+
+    const originalCustomBlocks = customBlocks; // Store original state for rollback
+    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
+
+    const newBlockOptimistic = {
+      _id: tempId,
+      blockName: newBlockName.trim(),
+      userId,
+      createdAt: new Date().toISOString(), // Add a timestamp for consistent display
+    };
+
+    // Optimistically add the new block to the state
+    setCustomBlocks(prev => [...prev, newBlockOptimistic]);
+    toast.info("Creating block...");
 
     try {
       const res = await axios.post(`https://backend-pbmi.onrender.com/api/health-blocks`, {
         userId,
         blockName: newBlockName.trim()
       });
-      setCustomBlocks(prev => [res.data, ...prev]);
+      // Replace the optimistic block with the actual one from the backend
+      setCustomBlocks(prev => prev.map(b => b._id === tempId ? res.data : b));
       toast.success("Block created ✅");
       setNewBlockName('');
       setShowBlockCreate(false);
     } catch (err) {
       console.error("Block creation error:", err);
       toast.error("Failed to create block ❌");
+      setCustomBlocks(originalCustomBlocks); // Rollback
     }
   };
 
@@ -236,22 +369,33 @@ const HealthRecords = () => {
               <Col md={6} lg={4} key={file._id} className="mb-3">
                 <Card className="shadow-sm h-100">
                   <Card.Body>
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
                       <Card.Title className="text-truncate" title={file.fileName}>
                         <FaFileAlt className="me-2 text-primary" />{file.fileName}
                       </Card.Title>
-                      <div className="d-flex gap-2">
-                        <FaEdit className="text-warning" style={{ cursor: 'pointer' }} onClick={() => handleEdit(file)} />
+                      <div className="d-flex gap-2 align-items-center"> {/* Added align-items-center for vertical alignment */}
+                        {/* Favorite Icon */}
+                        <FaHeart
+                          className="me-1"
+                          style={{
+                            cursor: 'pointer',
+                            color: file.favorite ? 'red' : 'gray', // Conditional color
+                            transition: 'color 0.1s ease-in-out' // Fast color change
+                          }}
+                          onClick={() => handleFavoriteToggle(file._id, file.favorite)}
+                          title={file.favorite ? "Remove from favorites" : "Add to favorites"}
+                        />
+                        <FaEdit className="text-warning" style={{ cursor: 'pointer' }} onClick={() => handleEdit(file)} title="Edit File" />
                         {deletingId === file._id ? (
                           <Spinner animation="border" size="sm" />
                         ) : (
-                          <FaTrash className="text-danger" style={{ cursor: 'pointer' }} onClick={() => handleDelete(file._id)} />
+                          <FaTrash className="text-danger" style={{ cursor: 'pointer' }} onClick={() => handleDelete(file._id)} title="Delete File" />
                         )}
                       </div>
                     </div>
                     <small className="text-muted">{new Date(file.createdAt).toLocaleString()}</small>
                     <div className="text-center mt-3">
-                      <Button variant="outline-primary" size="sm" onClick={() => handleViewFile(file.fileData)}>
+                      <Button variant="outline-primary" size="sm" onClick={() => handleViewFile(file)}> {/* Pass the whole file object */}
                         View File
                       </Button>
                     </div>
@@ -316,6 +460,13 @@ const HealthRecords = () => {
           </Form>
         </Modal.Body>
       </Modal>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        show={showFilePreviewModal}
+        onHide={() => setShowFilePreviewModal(false)}
+        file={fileToPreview}
+      />
     </div>
   );
 };
