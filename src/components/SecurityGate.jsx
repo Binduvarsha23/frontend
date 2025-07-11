@@ -7,6 +7,18 @@ import PatternLock from "react-pattern-lock"; // Import PatternLock
 
 const API = "https://backend-pbmi.onrender.com/api/security-config";
 
+// Helper function to convert Base64Url to ArrayBuffer
+function base64urlToArrayBuffer(base64url) {
+  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(base64);
+  const rawLength = raw.length;
+  const array = new Uint8Array(new ArrayBuffer(rawLength));
+  for (let i = 0; i < rawLength; i++) {
+    array[i] = raw.charCodeAt(i);
+  }
+  return array.buffer;
+}
+
 const SecurityGate = ({ children }) => {
   const [user, loadingUser] = useAuthState(auth);
   const [isVerified, setIsVerified] = useState(false);
@@ -23,6 +35,7 @@ const SecurityGate = ({ children }) => {
   const [token, setToken] = useState("");
   const [newValue, setNewValue] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [biometricCredentialId, setBiometricCredentialId] = useState(null); // New state for biometric credential ID
 
   // Memoized function to fetch configuration, preventing unnecessary re-renders
   const fetchConfig = useCallback(async () => {
@@ -38,6 +51,13 @@ const SecurityGate = ({ children }) => {
     try {
       const res = await axios.get(`${API}/${user.uid}`);
       const cfg = res.data.config;
+
+      // Set biometricCredentialId if available in config
+      if (cfg.biometricEnabled && cfg.biometricCredentialId) {
+        setBiometricCredentialId(cfg.biometricCredentialId);
+      } else {
+        setBiometricCredentialId(null);
+      }
 
       if (res.data.setupRequired || !(cfg.pinEnabled || cfg.passwordEnabled || cfg.patternEnabled || cfg.biometricEnabled)) {
         // If setup is required or no security method is enabled, the gate should be unlocked.
@@ -113,6 +133,9 @@ const SecurityGate = ({ children }) => {
         if (!window.PublicKeyCredential) {
           throw new Error("WebAuthn (Biometric) is not supported in this browser or environment (requires HTTPS).");
         }
+        if (!biometricCredentialId) {
+            throw new Error("No biometric credential registered for this user on this device. Please enable it in Security Settings.");
+        }
 
         // In a real app, you'd fetch a challenge from your backend for security
         // For this example, we'll use a dummy challenge.
@@ -122,7 +145,7 @@ const SecurityGate = ({ children }) => {
         const publicKeyCredentialRequestOptions = {
           challenge: challenge,
           allowCredentials: [{
-            id: new TextEncoder().encode(user.uid), // Use user ID as credential ID for simplicity
+            id: base64urlToArrayBuffer(biometricCredentialId), // Use the stored credential ID
             type: 'public-key',
             transports: ['internal'] // 'internal' for platform authenticators (fingerprint, face ID)
           }],
@@ -175,7 +198,10 @@ const SecurityGate = ({ children }) => {
         setError("Biometric verification cancelled or denied by user.");
       } else if (err.message.includes("supported")) {
         setError(err.message);
-      } else {
+      } else if (err.message.includes("No biometric credential registered")) {
+        setError(err.message); // Display the specific error for no credential
+      }
+      else {
         setError("Verification failed. Please try again.");
       }
     } finally {
