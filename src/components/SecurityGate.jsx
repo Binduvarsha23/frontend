@@ -10,16 +10,12 @@ const API = "https://backend-pbmi.onrender.com/api/security-config";
 const SecurityGate = ({ children }) => {
   const [user, loadingUser] = useAuthState(auth);
   const [isVerified, setIsVerified] = useState(false);
-  // Initial state: Assume locked and modal shown if a user is present,
-  // until the config is fetched and proves otherwise.
   const [forceLock, setForceLock] = useState(true);
-  const [config, setConfig] = useState(null); // config will be null until fetched
-  // Initialize authMethod to null, so no specific method is shown by default
+  const [config, setConfig] = useState(null);
   const [authMethod, setAuthMethod] = useState(null);
   const [inputValue, setInputValue] = useState(""); // Used for PIN/Password
   const [pattern, setPattern] = useState([]); // Used for PatternLock
   const [error, setError] = useState("");
-  // Initial state: Modal is shown by default if we expect a lock (i.e., user is present)
   const [showModal, setShowModal] = useState(true);
   const [step, setStep] = useState("enter");
   const [selectedQuestion, setSelectedQuestion] = useState("");
@@ -31,12 +27,10 @@ const SecurityGate = ({ children }) => {
   // Memoized function to fetch configuration, preventing unnecessary re-renders
   const fetchConfig = useCallback(async () => {
     if (!user) {
-      // If no user, ensure the gate is unlocked (or redirect to login)
       setIsVerified(true);
       setForceLock(false);
       setShowModal(false);
       setError("User not authenticated. Please log in.");
-      // Reset authMethod if no user is present
       setAuthMethod(null);
       return;
     }
@@ -45,18 +39,16 @@ const SecurityGate = ({ children }) => {
       const res = await axios.get(`${API}/${user.uid}`);
       const cfg = res.data.config;
 
-      if (res.data.setupRequired || !(cfg.pinEnabled || cfg.passwordEnabled || cfg.patternEnabled)) {
+      if (res.data.setupRequired || !(cfg.pinEnabled || cfg.passwordEnabled || cfg.patternEnabled || cfg.biometricEnabled)) {
         // If setup is required or no security method is enabled, the gate should be unlocked.
         setIsVerified(true);
         setForceLock(false);
-        // Explicitly set authMethod to null if no method is enabled BEFORE hiding modal
         setAuthMethod(null);
         setShowModal(false); // Crucial: Hide modal if no security is needed
       } else {
         // A security method IS enabled, so the gate should be locked and modal shown.
-        const methods = ["pin", "password", "pattern"];
-        // Find the last enabled method, prioritizing them (pattern > password > pin)
-        const lastEnabled = methods.findLast((method) => cfg[`${method}Enabled`]);
+        const methods = ["biometric", "pattern", "password", "pin"]; // Prioritize biometric
+        const lastEnabled = methods.find((method) => cfg[`${method}Enabled`]);
 
         setAuthMethod(lastEnabled); // Set the active authentication method
         setIsVerified(false); // User is not yet verified
@@ -74,87 +66,118 @@ const SecurityGate = ({ children }) => {
       setIsVerified(true); // Grant access in case of fetch error to prevent blocking
       setForceLock(false);
       setShowModal(false);
-      // Also reset authMethod on error to avoid showing stale method
       setAuthMethod(null);
     }
-  }, [user]); // Only re-create fetchConfig if 'user' changes
+  }, [user]);
 
   // Initial config fetch on component mount or user change
   useEffect(() => {
     if (user) {
       fetchConfig();
     } else if (!loadingUser) {
-      // If user is null and not loading, it means no user is logged in.
-      // Unlock the gate and hide the modal.
       setIsVerified(true);
       setForceLock(false);
       setShowModal(false);
       setError("User not authenticated. Please log in.");
-      setAuthMethod(null); // Ensure authMethod is cleared
+      setAuthMethod(null);
     }
-  }, [user, loadingUser, fetchConfig]); // fetchConfig is a dependency because it's memoized
+  }, [user, loadingUser, fetchConfig]);
 
   // Force lock on tab switch (visibility change)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && user) {
-        // Immediately lock the gate and show the modal
-        // This provides instant visual feedback to the user.
         setIsVerified(false);
         setForceLock(true);
         setShowModal(true);
-        setStep("enter"); // Reset to the initial 'enter' step
-        setError(""); // Clear any previous errors
-        setInputValue(""); // Clear input fields
-        setPattern([]); // Clear pattern input
-        // Set config to null and authMethod to null to show loading state
+        setStep("enter");
+        setError("");
+        setInputValue("");
+        setPattern([]);
         setConfig(null);
         setAuthMethod(null);
-
-        // Then, fetch the latest configuration in the background.
-        // fetchConfig will then correctly adjust the lock state
-        // based on whether a security method is actually enabled.
         fetchConfig();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [user, fetchConfig]); // fetchConfig is a dependency because it's memoized
+  }, [user, fetchConfig]);
 
   const verify = async () => {
     setVerifying(true); // Start loading spinner
     setError(""); // Clear previous errors
 
-    let valueToVerify = inputValue;
-    if (authMethod === "pattern") {
-      if (pattern.length < 3) {
-        setError("Pattern must connect at least 3 dots.");
-        setVerifying(false);
-        return;
-      }
-      valueToVerify = JSON.stringify(pattern); // Convert pattern array to string for API
-    }
-
     try {
-      const res = await axios.post(`${API}/verify`, {
-        userId: user.uid,
-        value: valueToVerify,
-        method: authMethod,
-      });
-      if (res.data.success) {
+      if (authMethod === "biometric") {
+        if (!window.PublicKeyCredential) {
+          throw new Error("WebAuthn (Biometric) is not supported in this browser or environment (requires HTTPS).");
+        }
+
+        // In a real app, you'd fetch a challenge from your backend for security
+        // For this example, we'll use a dummy challenge.
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const publicKeyCredentialRequestOptions = {
+          challenge: challenge,
+          allowCredentials: [{
+            id: new TextEncoder().encode(user.uid), // Use user ID as credential ID for simplicity
+            type: 'public-key',
+            transports: ['internal'] // 'internal' for platform authenticators (fingerprint, face ID)
+          }],
+          userVerification: "required", // Require biometric verification
+          timeout: 60000,
+        };
+
+        const credential = await navigator.credentials.get({
+          publicKey: publicKeyCredentialRequestOptions,
+        });
+
+        // In a real app, you would send 'credential' to your backend for verification
+        // For this demo, we'll just simulate success after the biometric prompt.
+        console.log("Biometric credential obtained:", credential);
         setIsVerified(true);
         setForceLock(false);
         setShowModal(false);
-        setInputValue("");
-        setPattern([]); // Clear pattern after successful verification
         setError("");
+        // No input to clear for biometric
       } else {
-        setError("Invalid " + authMethod);
+        let valueToVerify = inputValue;
+        if (authMethod === "pattern") {
+          if (pattern.length < 3) {
+            setError("Pattern must connect at least 3 dots.");
+            setVerifying(false);
+            return;
+          }
+          valueToVerify = JSON.stringify(pattern); // Convert pattern array to string for API
+        }
+
+        const res = await axios.post(`${API}/verify`, {
+          userId: user.uid,
+          value: valueToVerify,
+          method: authMethod,
+        });
+        if (res.data.success) {
+          setIsVerified(true);
+          setForceLock(false);
+          setShowModal(false);
+          setInputValue("");
+          setPattern([]); // Clear pattern after successful verification
+          setError("");
+        } else {
+          setError("Invalid " + authMethod);
+        }
       }
     } catch (err) {
       console.error("Verification failed:", err);
-      setError("Verification failed. Please try again.");
+      if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+        setError("Biometric verification cancelled or denied by user.");
+      } else if (err.message.includes("supported")) {
+        setError(err.message);
+      } else {
+        setError("Verification failed. Please try again.");
+      }
     } finally {
       setVerifying(false); // Stop loading spinner
     }
@@ -253,14 +276,13 @@ const SecurityGate = ({ children }) => {
         <Modal.Header>
           <Modal.Title>
             {loadingUser || !user ? "Loading User..." :
-             config === null ? "Checking Security Settings..." : // Improved loading message
-             // Only display the auth method if it's not null, otherwise no title needed
-             authMethod ? ({
-              enter: `Enter your ${authMethod}`,
-              forgot: `Forgot ${authMethod}`,
-              "verify-code": "Enter Reset Code",
-              "set-new": `Set New ${authMethod}`,
-            })[step] : " "} {/* Empty string if authMethod is null */}
+              config === null ? "Checking Security Settings..." :
+              authMethod ? ({
+                enter: `Enter your ${authMethod}`,
+                forgot: `Forgot ${authMethod}`,
+                "verify-code": "Enter Reset Code",
+                "set-new": `Set New ${authMethod}`,
+              })[step] || `Verify with ${authMethod}` : "Security Check"} {/* Fallback for biometric title */}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -272,17 +294,32 @@ const SecurityGate = ({ children }) => {
           ) : config === null ? (
             <div className="text-center">
               <Spinner animation="border" className="mb-3" />
-              <p>Loading security configuration...</p> {/* Improved loading message */}
+              <p>Loading security configuration...</p>
             </div>
           ) : (
             <>
               {error && <Alert variant="danger">{error}</Alert>}
 
-              {/* Only render authentication input if authMethod is not null */}
               {step === "enter" && authMethod && (
                 <>
-                  {authMethod === "pattern" ? (
-                    <div className="text-center p-3 rounded" style={{ backgroundColor: '#343a40', color: '#ffffff' }}> {/* Dark background for pattern */}
+                  {authMethod === "biometric" ? (
+                    <div className="text-center p-3">
+                      <p className="lead">
+                        {verifying ? "Scanning fingerprint..." : "Please verify with your biometric sensor."}
+                      </p>
+                      {verifying ? (
+                        <Spinner animation="border" className="mb-3" />
+                      ) : (
+                        <Button onClick={verify} disabled={verifying}>
+                          Verify with Biometric
+                        </Button>
+                      )}
+                      <p className="mt-3 text-muted">
+                        (e.g., Fingerprint, Face ID via Windows Hello/Touch ID)
+                      </p>
+                    </div>
+                  ) : authMethod === "pattern" ? (
+                    <div className="text-center p-3 rounded" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
                       <p className="fw-semibold">Draw Your Pattern</p>
                       <PatternLock
                         width={250}
@@ -296,7 +333,7 @@ const SecurityGate = ({ children }) => {
                             setError("");
                           }
                         }}
-                        disabled={verifying} // Disable pattern drawing while verifying
+                        disabled={verifying}
                       />
                     </div>
                   ) : (
@@ -311,21 +348,21 @@ const SecurityGate = ({ children }) => {
                     />
                   )}
                   <div className="mt-3 d-flex justify-content-between">
-                    <Button onClick={verify} disabled={verifying}>
-                      {verifying ? (
-                        <>
-                          <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Verifying...
-                        </>
-                      ) : (
-                        "Verify"
-                      )}
-                    </Button>
+                    {authMethod !== "biometric" && ( // Only show verify button for non-biometric methods
+                      <Button onClick={verify} disabled={verifying}>
+                        {verifying ? (
+                          <>
+                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Verifying...
+                          </>
+                        ) : (
+                          "Verify"
+                        )}
+                      </Button>
+                    )}
                     <Button variant="link" onClick={() => setStep("forgot")} disabled={verifying}>Forgot?</Button>
                   </div>
                 </>
               )}
-
-              {/* Removed the "Access Granted" message block as the modal will close if authMethod is null */}
 
               {step === "forgot" && (
                 <>
@@ -346,7 +383,7 @@ const SecurityGate = ({ children }) => {
                         onChange={(e) => setSelectedQuestion(e.target.value)}
                         disabled={verifying}
                       >
-                        <option value="">Choose Security Question</option> {/* Added value for default option */}
+                        <option value="">Choose Security Question</option>
                         {config.securityQuestions.map((q, i) => (
                           <option key={i} value={q.question}>{q.question}</option>
                         ))}
@@ -386,12 +423,12 @@ const SecurityGate = ({ children }) => {
                     disabled={verifying}
                   />
                   {authMethod === "pattern" ? (
-                    <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}> {/* Dark background for new pattern */}
+                    <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
                       <p className="fw-semibold">Draw New Pattern</p>
                       <PatternLock
                         width={250}
                         size={3}
-                        path={pattern} // Using 'pattern' state for new pattern input
+                        path={pattern}
                         onChange={(pts) => setPattern(pts || [])}
                         onFinish={() => {
                           if (pattern.length < 3) {
@@ -400,7 +437,7 @@ const SecurityGate = ({ children }) => {
                             setError("");
                           }
                         }}
-                        disabled={verifying} // Disable pattern drawing while verifying
+                        disabled={verifying}
                       />
                     </div>
                   ) : (
