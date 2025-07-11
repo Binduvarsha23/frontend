@@ -93,6 +93,7 @@ const SecuritySettings = () => {
     const isEnabled = config?.[`${method}Enabled`];
 
     if (isEnabled) {
+      // Logic for disabling a method
       try {
         setIsSaving(true); // Start saving indicator
         const updated = { userId: user.uid };
@@ -111,6 +112,74 @@ const SecuritySettings = () => {
       return;
     }
 
+    // Logic for enabling a method
+    if (method === "biometric") {
+      try {
+        setIsSaving(true);
+        setError("");
+        setSuccessMessage("");
+
+        // Check for WebAuthn support
+        if (!window.PublicKeyCredential) {
+          throw new Error("WebAuthn (Biometric) is not supported in this browser or environment (requires HTTPS).");
+        }
+
+        // Generate a challenge from the server for registration
+        // In a real app, this would be a fetch to your backend to get a challenge
+        // For this example, we'll use a dummy challenge
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const publicKeyCredentialCreationOptions = {
+          challenge: challenge,
+          rp: { name: "Wealth Management App", id: window.location.hostname },
+          user: {
+            id: new TextEncoder().encode(user.uid),
+            name: user.email || user.uid,
+            displayName: user.email || user.uid,
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }], // ES256, RS256
+          authenticatorSelection: {
+            authenticatorAttachment: "platform", // Use platform authenticators (e.g., built-in fingerprint)
+            userVerification: "required", // Require biometric verification
+          },
+          timeout: 60000,
+          attestation: "none",
+        };
+
+        const credential = await navigator.credentials.create({
+          publicKey: publicKeyCredentialCreationOptions,
+        });
+
+        // If credential creation is successful, send a simplified public key to your backend
+        // In a real app, you'd send credential.rawId, credential.response.attestationObject, etc.
+        // For this demo, we'll just update the enabled status.
+        const updated = {
+          userId: user.uid,
+          biometricEnabled: true,
+          pinEnabled: false,
+          passwordEnabled: false,
+          patternEnabled: false,
+        };
+        const res = await axios.put(`${API}/${user.uid}`, updated);
+        setConfig(res.data);
+        setSuccessMessage("Biometric authentication enabled successfully!");
+      } catch (err) {
+        console.error("Failed to enable biometric authentication:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          setError("Biometric setup cancelled or denied by user.");
+        } else if (err.message.includes("supported")) {
+          setError(err.message);
+        } else {
+          setError("Failed to enable biometric authentication. Ensure your device has a biometric sensor configured and try again on HTTPS.");
+        }
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    // For PIN, Password, Pattern
     setMode(method);
     setActiveMethod(method);
     setValue("");
@@ -155,6 +224,7 @@ const SecuritySettings = () => {
           patternEnabled: true,
           pinEnabled: false,
           passwordEnabled: false,
+          biometricEnabled: false, // Disable other methods
         };
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
@@ -198,7 +268,7 @@ const SecuritySettings = () => {
         updated[`${method}Hash`] = hash;
         updated[`${method}Enabled`] = true;
 
-        const otherMethods = ["pin", "password", "pattern"].filter(m => m !== method);
+        const otherMethods = ["pin", "password", "pattern", "biometric"].filter(m => m !== method); // Include biometric
         otherMethods.forEach(m => updated[`${m}Enabled`] = false);
 
         const res = await axios.put(`${API}/${user.uid}`, updated);
@@ -297,7 +367,7 @@ const SecuritySettings = () => {
       {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
       <Row className="g-3">
-        {["pin", "password", "pattern"].map((method) => (
+        {["pin", "password", "pattern", "biometric"].map((method) => ( // Added "biometric"
           <Col xs={12} md={4} key={method}>
             <Form.Check
               type="switch"
@@ -476,15 +546,13 @@ const SecuritySettings = () => {
                   </Dropdown.Menu>
                 </Dropdown>
               </Form.Group>
-              <Form.Group>
-                <Form.Control
-                  type="text"
-                  placeholder="Enter your answer"
-                  value={q.answer}
-                  onChange={(e) => handleSecurityQuestionChange(idx, "answer", e.target.value)}
-                  disabled={isSaving} // Disable input while saving
-                />
-              </Form.Group>
+              <Form.Control
+                type="text"
+                placeholder="Enter your answer"
+                value={q.answer}
+                onChange={(e) => handleSecurityQuestionChange(idx, "answer", e.target.value)}
+                disabled={isSaving} // Disable input while saving
+              />
             </div>
           ))}
           <Button className="w-100 mt-3" onClick={handleSaveSecurityQuestions} disabled={isSaving}>
