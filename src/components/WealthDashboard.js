@@ -189,6 +189,23 @@ const WealthDashboard = () => {
 
   const addAsset = async (assetData) => {
     const { nominees: assetNominees, ...restOfAssetData } = assetData;
+    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
+
+    // Create a temporary asset object, including its nominees
+    const newAssetOptimistic = {
+      ...restOfAssetData,
+      _id: tempId,
+      userId,
+      nominees: assetNominees.map(n => ({ ...n, itemId: tempId, type: 'asset' })), // Link nominees to tempId
+      createdAt: new Date().toISOString(), // Add a timestamp for consistent display
+      favorite: false, // Default favorite status
+    };
+
+    // Optimistically add the new asset to the state
+    setAssets(prevAssets => [...prevAssets, newAssetOptimistic]);
+    // Optimistically add nominees to the global nominees state
+    setNominees(prevNominees => [...prevNominees, ...newAssetOptimistic.nominees]);
+    toast.info("Adding asset..."); // Immediate feedback
 
     try {
       const formData = new FormData();
@@ -205,31 +222,38 @@ const WealthDashboard = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      const newAsset = res.data;
+      const actualNewAsset = res.data; // This will have the real _id
 
-      const totalPercentage = assetNominees.reduce((sum, n) => sum + (Number(n.percentage) || 0), 0);
-      const hasAnyNominee = assetNominees.some(n => n.name || n.percentage > 0);
+      // Update assets state: replace optimistic asset with actual asset
+      setAssets(prevAssets => prevAssets.map(a => a._id === tempId ? {
+        ...actualNewAsset,
+        nominees: actualNewAsset.nominees || assetNominees.map(n => ({ ...n, itemId: actualNewAsset._id, type: 'asset' })) // Ensure nominees are correctly linked
+      } : a));
 
-      // ✅ Only one warning toast here
-      if (hasAnyNominee && totalPercentage < 100 && totalPercentage > 0) {
-        toast.warn(`Total nominee percentage is ${totalPercentage}%. You can allocate the remaining percentage later.`);
-      }
+      // Update nominees state: link optimistic nominees to the actual asset ID
+      setNominees(prevNominees => prevNominees.map(n =>
+        n.itemId === tempId ? { ...n, itemId: actualNewAsset._id } : n
+      ));
 
-      await saveNominees('asset', newAsset._id, assetNominees);
+      // Save nominees to backend (now that we have the real newAsset._id)
+      await saveNominees('asset', actualNewAsset._id, assetNominees);
 
       setEditing({ type: null, data: null });
       toast.success("Asset added successfully!");
-      fetchData(false);
     } catch (err) {
+      console.error("Error adding asset:", err);
+      // Rollback optimistic update
+      setAssets(prevAssets => prevAssets.filter(a => a._id !== tempId));
+      setNominees(prevNominees => prevNominees.filter(n => n.itemId !== tempId));
+
       if (err.response?.status === 409) {
-        const { name, type } = assetData;
-        const existing = assets.find(a => a.name === name && a.type === type);
+        const { name, type: assetType } = assetData;
+        const existing = assets.find(a => a.name === name && a.type === assetType);
         if (existing) {
           setEditing({ type: "asset", data: existing });
           toast.error(err.response.data.error);
         }
       } else {
-        console.error("Error adding asset:", err);
         toast.error("Failed to add asset.");
       }
     }
@@ -270,45 +294,77 @@ const WealthDashboard = () => {
   };
 
   const deleteAsset = async (id) => {
-    if (window.confirm("Are you sure you want to delete this asset?")) {
-      try {
-        await axios.delete(`https://backend-pbmi.onrender.com/api/assets/${id}`);
-        // Also delete associated nominees
-        const nomineesToDelete = nominees.filter(n => n.itemId === id && n.type === 'asset');
-        await Promise.all(nomineesToDelete.map(async (n) => {
-          try {
-            await axios.delete(`https://backend-pbmi.onrender.com/api/nominees/${n._id}`);
-          } catch (delErr) {
-            console.error(`Failed to delete nominee ${n._id} during asset deletion:`, delErr);
-          }
-        }));
+    const originalAssets = assets; // Store original state for rollback
+    const originalNominees = nominees; // Store original nominees for rollback
 
-        toast.success("Asset and associated nominees deleted successfully!");
-        fetchData(false); // Re-fetch all data to update dashboard
-      } catch (err) {
-        console.error("Error deleting asset:", err);
-        toast.error("Failed to delete asset.");
-      }
+    // Optimistic UI update: immediately filter out the deleted asset and its nominees
+    setAssets(prevAssets => prevAssets.filter(a => a._id !== id));
+    setNominees(prevNominees => prevNominees.filter(n => n.itemId !== id || n.type !== 'asset'));
+    toast.success("Deleting asset..."); // Immediate feedback
+
+    try {
+      await axios.delete(`https://backend-pbmi.onrender.com/api/assets/${id}`);
+      // Nominees are handled by backend cascade or will be filtered out by fetchData
+      toast.success("Asset and associated nominees deleted successfully!");
+      fetchData(false); // Re-fetch all data to ensure consistency
+    } catch (err) {
+      console.error("Error deleting asset:", err);
+      toast.error("Failed to delete asset. Rolling back...");
+      setAssets(originalAssets); // Rollback if deletion fails
+      setNominees(originalNominees); // Rollback nominees
     }
   };
 
   const addInvestment = async (investmentData) => {
-    const { nominees: investmentNominees, ...restOfInvestmentData } = investmentData; // Separate nominees
+    const { nominees: investmentNominees, ...restOfInvestmentData } = investmentData;
+    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
+
+    // Create a temporary investment object, including its nominees
+    const newInvestmentOptimistic = {
+      ...restOfInvestmentData,
+      _id: tempId,
+      userId,
+      nominees: investmentNominees.map(n => ({ ...n, itemId: tempId, type: 'investment' })), // Link nominees to tempId
+      createdAt: new Date().toISOString(), // Add a timestamp for consistent display
+      favorite: false, // Default favorite status
+    };
+
+    // Optimistically add the new investment to the state
+    setInvestments(prevInvestments => [...prevInvestments, newInvestmentOptimistic]);
+    // Optimistically add nominees to the global nominees state
+    setNominees(prevNominees => [...prevNominees, ...newInvestmentOptimistic.nominees]);
+    toast.info("Adding investment..."); // Immediate feedback
+
     try {
       const res = await axios.post("https://backend-pbmi.onrender.com/api/investments", {
         ...restOfInvestmentData,
         userId,
       });
-      const newInvestment = res.data;
+      const actualNewInvestment = res.data; // This will have the real _id
 
-      await saveNominees('investment', newInvestment._id, investmentNominees); // Save nominees
+      // Update investments state: replace optimistic investment with actual investment
+      setInvestments(prevInvestments => prevInvestments.map(i => i._id === tempId ? {
+        ...actualNewInvestment,
+        nominees: actualNewInvestment.nominees || investmentNominees.map(n => ({ ...n, itemId: actualNewInvestment._id, type: 'investment' })) // Ensure nominees are correctly linked
+      } : i));
+
+      // Update nominees state: link optimistic nominees to the actual investment ID
+      setNominees(prevNominees => prevNominees.map(n =>
+        n.itemId === tempId ? { ...n, itemId: actualNewInvestment._id } : n
+      ));
+
+      // Save nominees to backend (now that we have the real newInvestment._id)
+      await saveNominees('investment', actualNewInvestment._id, investmentNominees);
 
       setEditing({ type: null, data: null });
       toast.success("Investment added successfully!");
-      fetchData(false);
     } catch (err) {
       console.error("Error adding investment:", err);
-      toast.error("Failed to add investment or its nominees.");
+      // Rollback optimistic update
+      setInvestments(prevInvestments => prevInvestments.filter(i => i._id !== tempId));
+      setNominees(prevNominees => prevNominees.filter(n => n.itemId !== tempId));
+
+      toast.error("Failed to add investment.");
     }
   };
 
@@ -330,24 +386,24 @@ const WealthDashboard = () => {
   };
 
   const deleteInvestment = async (id) => {
-    if (window.confirm("Are you sure you want to delete this investment?")) {
-      try {
-        await axios.delete(`https://backend-pbmi.onrender.com/api/investments/${id}`);
-        // Also delete associated nominees
-        const nomineesToDelete = nominees.filter(n => n.itemId === id && n.type === 'investment');
-        await Promise.all(nomineesToDelete.map(async (n) => {
-          try {
-            await axios.delete(`https://backend-pbmi.onrender.com/api/nominees/${n._id}`);
-          } catch (delErr) {
-            console.error(`Failed to delete nominee ${n._id} during investment deletion:`, delErr);
-          }
-        }));
-        toast.success("Investment and associated nominees deleted successfully!");
-        fetchData(false);
-      } catch (err) {
-        console.error("Error deleting investment:", err);
-        toast.error("Failed to delete investment.");
-      }
+    const originalInvestments = investments; // Store original state for rollback
+    const originalNominees = nominees; // Store original nominees for rollback
+
+    // Optimistic UI update: immediately filter out the deleted investment and its nominees
+    setInvestments(prevInvestments => prevInvestments.filter(i => i._id !== id));
+    setNominees(prevNominees => prevNominees.filter(n => n.itemId !== id || n.type !== 'investment'));
+    toast.success("Deleting investment..."); // Immediate feedback
+
+    try {
+      await axios.delete(`https://backend-pbmi.onrender.com/api/investments/${id}`);
+      // Nominees are handled by backend cascade or will be filtered out by fetchData
+      toast.success("Investment and associated nominees deleted successfully!");
+      fetchData(false); // Re-fetch all data to ensure consistency
+    } catch (err) {
+      console.error("Error deleting investment:", err);
+      toast.error("Failed to delete investment. Rolling back...");
+      setInvestments(originalInvestments); // Rollback if deletion fails
+      setNominees(originalNominees); // Rollback nominees
     }
   };
 
@@ -739,110 +795,107 @@ const WealthDashboard = () => {
                                 onClick={() => deleteInvestment(i._id)}
                                 title="Delete Investment"
                                 aria-label={`Delete ${i.name}`}
-                              >
-                                <FaTrashAlt aria-hidden="true" />
-                              </button>
+                                >
+                                  <FaTrashAlt aria-hidden="true" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
-
-const Form = ({ type, onSubmit, initial, onCancelEdit, familyMembers }) => {
-  const defaultState = useMemo(() => {
-    // Ensure defaultState correctly resets all fields including image related ones
-    return type === "asset"
-      ? { name: "", type: "", value: "", location: "", description: "", imageUrl: "", imageFile: null, nominees: [{ name: "", percentage: 0, nomineeId: "" }] }
-      : { name: "", type: "", investedAmount: "", currentValue: "", nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
-  }, [type]);
-
-  const [form, setForm] = useState(initial || defaultState);
-
-  // When initial data changes (e.g., for editing OR clearing form after submission), reset form state
-  useEffect(() => {
-    if (initial) {
-      // Map initial nominees to include nomineeId (which comes from backend Nominee model)
-      const initialNominees = initial.nominees && initial.nominees.length > 0
-        ? initial.nominees.map(n => ({
-          name: n.nomineeName, // Use nomineeName from fetched data
-          percentage: n.percentage,
-          nomineeId: n.nomineeId // This is the _id of the Family member
-        }))
-        : [{ name: "", percentage: 0, nomineeId: "" }];
-
-      setForm({
-        ...initial,
-        imageFile: null, // Always clear imageFile when switching to edit mode
-        imageUrl: initial.imageUrl || "", // Use existing imageUrl or empty string
-        nominees: initialNominees,
-      });
-    } else {
-      setForm(defaultState); // Reset to default (empty) state
-    }
-  }, [initial, defaultState]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    );
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setForm((prev) => ({ ...prev, imageFile: file, imageUrl: URL.createObjectURL(file) }));
-    } else {
+  const Form = ({ type, onSubmit, initial, onCancelEdit, familyMembers }) => {
+    const defaultState = useMemo(() => {
+      // Ensure defaultState correctly resets all fields including image related ones
+      return type === "asset"
+        ? { name: "", type: "", value: "", location: "", description: "", imageUrl: "", imageFile: null, nominees: [{ name: "", percentage: 0, nomineeId: "" }] }
+        : { name: "", type: "", investedAmount: "", currentValue: "", nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
+    }, [type]);
+
+    const [form, setForm] = useState(initial || defaultState);
+
+    // When initial data changes (e.g., for editing OR clearing form after submission), reset form state
+    useEffect(() => {
+      if (initial) {
+        // Map initial nominees to include nomineeId (which comes from backend Nominee model)
+        const initialNominees = initial.nominees && initial.nominees.length > 0
+          ? initial.nominees.map(n => ({
+            name: n.nomineeName, // Use nomineeName from fetched data
+            percentage: n.percentage,
+            nomineeId: n.nomineeId // This is the _id of the Family member
+          }))
+          : [{ name: "", percentage: 0, nomineeId: "" }];
+
+        setForm({
+          ...initial,
+          imageFile: null, // Always clear imageFile when switching to edit mode
+          imageUrl: initial.imageUrl || "", // Use existing imageUrl or empty string
+          nominees: initialNominees,
+        });
+      } else {
+        setForm(defaultState); // Reset to default (empty) state
+      }
+    }, [initial, defaultState]);
+
+    const handleChange = (e) => {
+      const { name, value } = e.target;
+      setForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleImageChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setForm((prev) => ({ ...prev, imageFile: file, imageUrl: URL.createObjectURL(file) }));
+      } else {
+        setForm((prev) => ({ ...prev, imageFile: null, imageUrl: "" }));
+      }
+    };
+
+    const handleRemoveImage = () => {
       setForm((prev) => ({ ...prev, imageFile: null, imageUrl: "" }));
-    }
-  };
+    };
 
-  const handleRemoveImage = () => {
-    setForm((prev) => ({ ...prev, imageFile: null, imageUrl: "" }));
-  };
+    const addNominee = () => {
+      // Prevent adding if nominee with same name already exists
+      const existingNames = form.nominees.map(n => n.name);
+      if (existingNames.includes("") || existingNames.length >= familyMembers.length) {
+        toast.error("Please fill all existing nominee entries or no more unique nominees available.");
+        return;
+      }
 
-  const addNominee = () => {
-    // Prevent adding if nominee with same name already exists
-    const existingNames = form.nominees.map(n => n.name);
-    if (existingNames.includes("") || existingNames.length >= familyMembers.length) {
-      toast.error("Please fill all existing nominee entries or no more unique nominees available.");
-      return;
-    }
+      setForm((prev) => ({
+        ...prev,
+        nominees: [...prev.nominees, { name: "", percentage: 0, nomineeId: "" }],
+      }));
+    };
 
-    setForm((prev) => ({
-      ...prev,
-      nominees: [...prev.nominees, { name: "", percentage: 0, nomineeId: "" }],
-    }));
-  };
-
-  const handleNomineeChange = (index, field, value) => {
+    const handleNomineeChange = (index, field, value) => {
     setForm((prev) => {
       const newNominees = [...prev.nominees];
 
-      if (field === "name") {
-        const trimmedValue = value.trim();
+      if (field === "nomineeId") {
+        const selectedMember = familyMembers.find((f) => f._id === value);
+        if (!selectedMember) return prev;
 
-        const duplicate = newNominees.some(
-          (n, i) => n.name === trimmedValue && i !== index
-        );
-        if (duplicate) {
-          toast.error("This nominee is already added. You can update their percentage instead.");
+        // Prevent duplicate nominee selection
+        const alreadySelected = newNominees.some((n, i) => n.nomineeId === value && i !== index);
+        if (alreadySelected) {
+          toast.error("This nominee is already added.");
           return prev;
         }
 
-        newNominees[index].name = trimmedValue;
-
-        // Try to find nomineeId from family list; allow null for custom names
-        const matchedFamily = familyMembers.find(member => member.fullName === trimmedValue);
-        newNominees[index].nomineeId = matchedFamily ? matchedFamily._id : null;
+        newNominees[index].nomineeId = selectedMember._id;
+        newNominees[index].name = selectedMember.fullName;
       }
 
       if (field === "percentage") {
@@ -853,292 +906,296 @@ const Form = ({ type, onSubmit, initial, onCancelEdit, familyMembers }) => {
     });
   };
 
+    const removeNominee = (index) => {
+      setForm((prev) => {
+        const newNominees = prev.nominees.filter((_, i) => i !== index);
+        // If all nominees are removed, ensure at least one empty nominee field remains for UX
+        if (newNominees.length === 0) {
+          return { ...prev, nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
+        }
+        return { ...prev, nominees: newNominees };
+      });
+    };
 
-  const removeNominee = (index) => {
-    setForm((prev) => {
-      const newNominees = prev.nominees.filter((_, i) => i !== index);
-      // If all nominees are removed, ensure at least one empty nominee field remains for UX
-      if (newNominees.length === 0) {
-        return { ...prev, nominees: [{ name: "", percentage: 0, nomineeId: "" }] };
-      }
-      return { ...prev, nominees: newNominees };
-    });
-  };
+    const handleSubmit = (e) => {
+      e.preventDefault();
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+      const isNegative = (val) => Number(val) < 0;
+      const totalPercentage = form.nominees.reduce((sum, n) => sum + (n.percentage || 0), 0);
+      const hasAnyNomineeName = form.nominees.some(n => n.name);
 
-    const isNegative = (val) => Number(val) < 0;
-    const totalPercentage = form.nominees.reduce((sum, n) => sum + (n.percentage || 0), 0);
-    const hasAnyNomineeName = form.nominees.some(n => n.name);
-
-    // Validation for required fields for asset/investment
-    if (type === "asset") {
-      if (!form.name || !form.type || form.value === "") {
-        toast.error("Please fill in all required fields for asset (Name, Type, Value).");
-        return;
-      }
-      if (isNegative(form.value)) {
-        toast.error("Asset value cannot be negative.");
-        return;
-      }
-    } else if (type === "investment") {
-      if (!form.name || !form.type || form.investedAmount === "" || form.currentValue === "") {
-        toast.error("Please fill in all required fields for investment (Name, Type, Invested, Current Value).");
-        return;
-      }
-      if (isNegative(form.investedAmount)) {
-        toast.error("Invested amount cannot be negative.");
-        return;
-      }
-      if (isNegative(form.currentValue)) {
-        toast.error("Current value cannot be negative.");
-        return;
-      }
-    }
-
-    // Nominee specific validations
-    if (hasAnyNomineeName || form.nominees.some(n => n.percentage > 0)) {
-      if (totalPercentage > 100) {
-        // No toast here anymore
-        return;
+      // Validation for required fields for asset/investment
+      if (type === "asset") {
+        if (!form.name || !form.type || form.value === "") {
+          toast.error("Please fill in all required fields for asset (Name, Type, Value).");
+          return;
+        }
+        if (isNegative(form.value)) {
+          toast.error("Asset value cannot be negative.");
+          return;
+        }
+      } else if (type === "investment") {
+        if (!form.name || !form.type || form.investedAmount === "" || form.currentValue === "") {
+          toast.error("Please fill in all required fields for investment (Name, Type, Invested, Current Value).");
+          return;
+        }
+        if (isNegative(form.investedAmount)) {
+          toast.error("Invested amount cannot be negative.");
+          return;
+        }
+        if (isNegative(form.currentValue)) {
+          toast.error("Current value cannot be negative.");
+          return;
+        }
       }
 
+      // Nominee specific validations
+      if (hasAnyNomineeName || form.nominees.some(n => n.percentage > 0)) {
+        if (totalPercentage > 100) {
+          // No toast here anymore
+          return;
+        }
 
-      const invalidNominee = form.nominees.some(n =>
-        n.name.trim() === "" ||
-        n.percentage < 0 ||
-        (!n.name && n.percentage > 0)
-      );
 
-      if (invalidNominee) {
-        toast.error("Ensure all entered nominees have a valid name selected from the list and a non-negative percentage. Remove empty nominee rows if not needed.");
-        return;
+        const invalidNominee = form.nominees.some(n =>
+          n.name.trim() === "" ||
+          n.percentage < 0 ||
+          (!n.name && n.percentage > 0)
+        );
+
+        if (invalidNominee) {
+          toast.error("Ensure all entered nominees have a valid name selected from the list and a non-negative percentage. Remove empty nominee rows if not needed.");
+          return;
+        }
       }
-    }
 
-    onSubmit(form);
-  };
+      onSubmit(form);
+    };
 
-  const typeOptions = {
-    asset: ["Real Estate", "Vehicle", "Luxury Items", "Other"],
-    investment: ["Stocks", "Mutual Funds", "Digital Gold", "Fixed Deposit", "Other"],
-  };
+    const typeOptions = {
+      asset: ["Real Estate", "Vehicle", "Luxury Items", "Other"],
+      investment: ["Stocks", "Mutual Funds", "Digital Gold", "Fixed Deposit", "Other"],
+    };
 
-  return (
-    <>
-      <form onSubmit={handleSubmit} aria-label={`${initial ? 'Edit' : 'Add New'} ${type === 'asset' ? 'Asset' : 'Investment'} Form`}>
-        <div className="mb-3">
-          <label htmlFor={`${type}-name`} className="form-label">
-            {type === "asset" ? "Asset Name" : "Investment Name"} <span className="text-danger">*</span>
-          </label>
-          <input
-            type="text"
-            className="form-control"
-            id={`${type}-name`}
-            name="name"
-            value={form.name}
-            placeholder={type === "asset" ? "e.g., Primary Residence, Honda City" : "e.g., HDFC Equity Fund, TCS Shares"}
-            onChange={handleChange}
-            required
-            aria-required="true"
-          />
-        </div>
+    return (
+      <>
+        <form onSubmit={handleSubmit} aria-label={`${initial ? 'Edit' : 'Add New'} ${type === 'asset' ? 'Asset' : 'Investment'} Form`}>
+          <div className="mb-3">
+            <label htmlFor={`${type}-name`} className="form-label">
+              {type === "asset" ? "Asset Name" : "Investment Name"} <span className="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              className="form-control"
+              id={`${type}-name`}
+              name="name"
+              value={form.name}
+              placeholder={type === "asset" ? "e.g., Primary Residence, Honda City" : "e.g., HDFC Equity Fund, TCS Shares"}
+              onChange={handleChange}
+              required
+              aria-required="true"
+            />
+          </div>
 
-        <div className="mb-3">
-          <label htmlFor={`${type}-type`} className="form-label">Type <span className="text-danger">*</span></label>
-          <select
-            className="form-select"
-            id={`${type}-type`}
-            name="type"
-            value={form.type}
-            onChange={handleChange}
-            required
-            aria-required="true"
-          >
-            <option value="">Select Type</option>
-            {typeOptions[type].map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="mb-3">
+            <label htmlFor={`${type}-type`} className="form-label">Type <span className="text-danger">*</span></label>
+            <select
+              className="form-select"
+              id={`${type}-type`}
+              name="type"
+              value={form.type}
+              onChange={handleChange}
+              required
+              aria-required="true"
+            >
+              <option value="">Select Type</option>
+              {typeOptions[type].map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {type === "asset" ? (
-          <>
-            <div className="mb-3">
-              <label htmlFor="asset-value" className="form-label">Value (₹) <span className="text-danger">*</span></label>
-              <input
-                type="number"
-                className="form-control"
-                id="asset-value"
-                name="value"
-                value={form.value}
-                placeholder="0"
-                onChange={handleChange}
-                required
-                aria-required="true"
-              />
-            </div>
-
-            <div className="mb-3">
-              <label htmlFor="asset-location" className="form-label">Location</label>
-              <input
-                type="text"
-                className="form-control"
-                id="asset-location"
-                name="location"
-                value={form.location}
-                placeholder="City, State"
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label htmlFor="asset-description" className="form-label">Description</label>
-              <input
-                type="text"
-                className="form-control"
-                id="asset-description"
-                name="description"
-                value={form.description}
-                placeholder="Brief description (e.g., 3BHK Apartment, 2022 Model)"
-                onChange={handleChange}
-              />
-            </div>
-
-            {/* Field for Image Upload */}
-            <div className="mb-3">
-              <label htmlFor="asset-image-upload" className="form-label">Upload Image (Optional)</label>
-              <input
-                type="file"
-                className="form-control"
-                id="asset-image-upload"
-                name="imageFile" // Name for the file input
-                accept="image/*" // Accept only image files
-                onChange={handleImageChange}
-              />
-              <small className="form-text text-muted">Select an image file (e.g., JPG, PNG).</small>
-
-              {/* Display current image or preview of new image */}
-              {(form.imageUrl || initial?.imageUrl) && (
-                <div className="mt-3 image-preview-container">
-                  <p className="mb-2">Current Image:</p>
-                  <img
-                    src={form.imageUrl || initial?.imageUrl}
-                    alt="Asset"
-                    className="img-thumbnail"
-                    style={{ maxWidth: '200px', maxHeight: '200px' }}
-                    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/200x200/cccccc/000000?text=Image+Error"; }}
-                  />
-                  <button type="button" className="btn btn-sm btn-outline-danger ms-2" onClick={handleRemoveImage}>Remove Image</button>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mb-3">
-              <label htmlFor="investment-invested" className="form-label">Amount Invested (₹) <span className="text-danger">*</span></label>
-              <input
-                type="number"
-                className="form-control"
-                id="investment-invested"
-                name="investedAmount"
-                value={form.investedAmount}
-                placeholder="0"
-                onChange={handleChange}
-                required
-                aria-required="true"
-              />
-            </div>
-
-            <div className="mb-3">
-              <label htmlFor="investment-current" className="form-label">Current Value (₹) <span className="text-danger">*</span></label>
-              <input
-                type="number"
-                className="form-control"
-                id="investment-current"
-                name="currentValue"
-                value={form.currentValue}
-                placeholder="0"
-                onChange={handleChange}
-                required
-                aria-required="true"
-              />
-            </div>
-          </>
-        )}
-
-        {form.nominees.map((nominee, index) => (
-          <div key={index} className="mb-3 nominee-row">
-            <div className="d-flex gap-2">
-              <div className="w-50">
-                <label htmlFor={`${type}-nominee-${index}`} className="form-label">Nominee {index + 1} Name <span className="text-danger">*</span></label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id={`${type}-nominee-${index}`}
-                  value={nominee.name}
-                  onChange={(e) => handleNomineeChange(index, "name", e.target.value)}
-                  placeholder="Enter nominee name or select"
-                  list={`family-options-${index}`}
-                  required={nominee.percentage > 0 || (form.nominees.length === 1 && index === 0)} // Required if percentage > 0 or if it's the only (first) nominee
-                  aria-required={nominee.percentage > 0 || (form.nominees.length === 1 && index === 0)}
-                />
-                <datalist id={`family-options-${index}`}>
-                  {familyMembers.map((member) => (
-                    <option key={member._id} value={member.fullName} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="w-25">
-                <label htmlFor={`${type}-percentage-${index}`} className="form-label">Percentage <span className="text-danger">*</span></label>
+          {type === "asset" ? (
+            <>
+              <div className="mb-3">
+                <label htmlFor="asset-value" className="form-label">Value (₹) <span className="text-danger">*</span></label>
                 <input
                   type="number"
                   className="form-control"
-                  id={`${type}-percentage-${index}`}
-                  value={nominee.percentage}
-                  onChange={(e) => handleNomineeChange(index, "percentage", e.target.value)}
-                  placeholder="0-100"
-                  min="0"
-                  max="100"
-                  required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)} // Required if name exists or if it's the only (first) nominee
-                  aria-required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)}
+                  id="asset-value"
+                  name="value"
+                  value={form.value}
+                  placeholder="0"
+                  onChange={handleChange}
+                  required
+                  aria-required="true"
                 />
               </div>
-              {index > 0 && ( // Allow removing only if there's more than one nominee field
-                <button
-                  type="button"
-                  className="btn btn-outline-danger mt-4"
-                  onClick={() => removeNominee(index)}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        <button type="button" className="btn btn-outline-secondary mb-3" onClick={addNominee}>
-          Add Another Nominee
-        </button>
 
-        <div className="d-flex justify-content-between flex-wrap gap-2">
-          <button type="submit" className="btn btn-primary flex-grow-1">
-            {initial ? <><FaRegSave className="me-2" aria-hidden="true" /> Update</> : <><FaPlusCircle className="me-2" aria-hidden="true" /> Add</>}{" "}
-            {type === "asset" ? "Asset" : "Investment"}
-          </button>
-          {initial && (
-            <button type="button" className="btn btn-outline-secondary flex-grow-1" onClick={onCancelEdit}>
-              Cancel Edit
-            </button>
+              <div className="mb-3">
+                <label htmlFor="asset-location" className="form-label">Location</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="asset-location"
+                  name="location"
+                  value={form.location}
+                  placeholder="City, State"
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="asset-description" className="form-label">Description</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="asset-description"
+                  name="description"
+                  value={form.description}
+                  placeholder="Brief description (e.g., 3BHK Apartment, 2022 Model)"
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* Field for Image Upload */}
+              <div className="mb-3">
+                <label htmlFor="asset-image-upload" className="form-label">Upload Image (Optional)</label>
+                <input
+                  type="file"
+                  className="form-control"
+                  id="asset-image-upload"
+                  name="imageFile" // Name for the file input
+                  accept="image/*" // Accept only image files
+                  onChange={handleImageChange}
+                />
+                <small className="form-text text-muted">Select an image file (e.g., JPG, PNG).</small>
+
+                {/* Display current image or preview of new image */}
+                {(form.imageUrl || initial?.imageUrl) && (
+                  <div className="mt-3 image-preview-container">
+                    <p className="mb-2">Current Image:</p>
+                    <img
+                      src={form.imageUrl || initial?.imageUrl}
+                      alt="Asset"
+                      className="img-thumbnail"
+                      style={{ maxWidth: '200px', maxHeight: '200px' }}
+                      onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/200x200/cccccc/000000?text=Image+Error"; }}
+                    />
+                    <button type="button" className="btn btn-sm btn-outline-danger ms-2" onClick={handleRemoveImage}>Remove Image</button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-3">
+                <label htmlFor="investment-invested" className="form-label">Amount Invested (₹) <span className="text-danger">*</span></label>
+                <input
+                  type="number"
+                  className="form-control"
+                  id="investment-invested"
+                  name="investedAmount"
+                  value={form.investedAmount}
+                  placeholder="0"
+                  onChange={handleChange}
+                  required
+                  aria-required="true"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="investment-current" className="form-label">Current Value (₹) <span className="text-danger">*</span></label>
+                <input
+                  type="number"
+                  className="form-control"
+                  id="investment-current"
+                  name="currentValue"
+                  value={form.currentValue}
+                  placeholder="0"
+                  onChange={handleChange}
+                  required
+                  aria-required="true"
+                />
+              </div>
+            </>
           )}
-        </div>
-      </form>
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
-    </>
-  );
-};
 
-export default WealthDashboard;
+          <div className="mb-3 form-label">Nominees:</div>
+          {form.nominees.map((nominee, index) => (
+            <div key={index} className="mb-3 nominee-row">
+              <div className="d-flex gap-2">
+                <div className="w-50">
+                  <label htmlFor={`${type}-nominee-${index}`} className="form-label">Nominee {index + 1} Name <span className="text-danger">*</span></label>
+                  <select
+                    className="form-select"
+                    id={`${type}-nominee-${index}`}
+                    value={nominee.nomineeId}
+                    onChange={(e) => handleNomineeChange(index, "nomineeId", e.target.value)}
+                    required
+                  >
+                    <option value="">Select Nominee</option>
+                    {familyMembers.map((member) => (
+                      <option key={member._id} value={member._id}>
+                        {member.fullName} {member.relation.toLowerCase() === "self" ? "(Self)" : ""}
+                      </option>
+                    ))}
+                  </select>
+
+                  <datalist id={`family-options-${index}`}>
+                    {familyMembers.map((member) => (
+                      <option key={member._id} value={member.fullName} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="w-25">
+                  <label htmlFor={`${type}-percentage-${index}`} className="form-label">Percentage <span className="text-danger">*</span></label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    id={`${type}-percentage-${index}`}
+                    value={nominee.percentage}
+                    onChange={(e) => handleNomineeChange(index, "percentage", e.target.value)}
+                    placeholder="0-100"
+                    min="0"
+                    max="100"
+                    required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)} // Required if name exists or if it's the only (first) nominee
+                    aria-required={nominee.name !== "" || (form.nominees.length === 1 && index === 0)}
+                  />
+                </div>
+                {index > 0 && ( // Allow removing only if there's more than one nominee field
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger mt-4"
+                    onClick={() => removeNominee(index)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-outline-secondary mb-3" onClick={addNominee}>
+            Add Another Nominee
+          </button>
+
+          <div className="d-flex justify-content-between flex-wrap gap-2">
+            <button type="submit" className="btn btn-primary flex-grow-1">
+              {initial ? <><FaRegSave className="me-2" aria-hidden="true" /> Update</> : <><FaPlusCircle className="me-2" aria-hidden="true" /> Add</>}{" "}
+              {type === "asset" ? "Asset" : "Investment"}
+            </button>
+            {initial && (
+              <button type="button" className="btn btn-outline-secondary flex-grow-1" onClick={onCancelEdit}>
+                Cancel Edit
+              </button>
+            )}
+          </div>
+        </form>
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+      </>
+    );
+  };
+
+  export default WealthDashboard;
