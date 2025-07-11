@@ -1,479 +1,573 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Modal, Form, Button, Spinner, Alert } from "react-bootstrap";
+// SecuritySettings.jsx
+import React, { useEffect, useState } from "react";
+import { Button, Card, Form, Row, Col, Spinner, Alert, Dropdown } from "react-bootstrap";
 import axios from "axios";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "../firebase";
-import PatternLock from "react-pattern-lock"; // Import PatternLock
+import { auth } from "../firebase"; // Assuming firebase.js is correctly configured
+import { format } from "date-fns";
+import PatternLock from "react-pattern-lock";
 
 const API = "https://backend-pbmi.onrender.com/api/security-config";
 
-const SecurityGate = ({ children }) => {
-  const [user, loadingUser] = useAuthState(auth);
-  const [isVerified, setIsVerified] = useState(false);
-  const [forceLock, setForceLock] = useState(true);
+const FIXED_SECURITY_QUESTIONS = [
+  "What was the name of your first school?",
+  "What is your favorite food?",
+  "In what city were you born?",
+  "What was the name of your favorite teacher?",
+  "What is the name of your best friend?",
+  "What was your childhood nickname?",
+  "What is your mother's maiden name?",
+  "What was the make of your first car?",
+  "What is your favorite book?",
+  "What is your favorite movie?",
+];
+
+const SecuritySettings = () => {
+  const [user] = useAuthState(auth);
+  const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(null);
-  const [authMethod, setAuthMethod] = useState(null);
-  const [inputValue, setInputValue] = useState(""); // Used for PIN/Password
-  const [pattern, setPattern] = useState([]); // Used for PatternLock
   const [error, setError] = useState("");
-  const [showModal, setShowModal] = useState(true);
-  const [step, setStep] = useState("enter");
-  const [selectedQuestion, setSelectedQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [token, setToken] = useState("");
-  const [newValue, setNewValue] = useState("");
-  const [verifying, setVerifying] = useState(false);
+  const [pattern, setPattern] = useState([]);
+  const [confirmPattern, setConfirmPattern] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false); // New state for saving indicator
 
-  // Memoized function to fetch configuration, preventing unnecessary re-renders
-  const fetchConfig = useCallback(async () => {
-    if (!user) {
-      setIsVerified(true);
-      setForceLock(false);
-      setShowModal(false);
-      setError("User not authenticated. Please log in.");
-      setAuthMethod(null);
-      return;
-    }
+  const [securityQuestions, setSecurityQuestions] = useState([
+    { question: "", answer: "" },
+    { question: "", answer: "" },
+    { question: "", answer: "" },
+  ]);
+  const [showSecurityQuestionsForm, setShowSecurityQuestionsForm] = useState(false);
+  const [canChangeSecurityQuestions, setCanChangeSecurityQuestions] = useState(true);
+  const [nextChangeDate, setNextChangeDate] = useState(null);
 
-    try {
-      const res = await axios.get(`${API}/${user.uid}`);
-      const cfg = res.data.config;
+  const [mode, setMode] = useState(null);
+  const [value, setValue] = useState("");
+  const [confirmValue, setConfirmValue] = useState("");
+  const [activeMethod, setActiveMethod] = useState(null);
 
-      if (res.data.setupRequired || !(cfg.pinEnabled || cfg.passwordEnabled || cfg.patternEnabled || cfg.biometricEnabled)) {
-        // If setup is required or no security method is enabled, the gate should be unlocked.
-        setIsVerified(true);
-        setForceLock(false);
-        setAuthMethod(null);
-        setShowModal(false); // Crucial: Hide modal if no security is needed
-      } else {
-        // A security method IS enabled, so the gate should be locked and modal shown.
-        const methods = ["biometric", "pattern", "password", "pin"]; // Prioritize biometric
-        const lastEnabled = methods.find((method) => cfg[`${method}Enabled`]);
-
-        setAuthMethod(lastEnabled); // Set the active authentication method
-        setIsVerified(false); // User is not yet verified
-        setForceLock(true); // Force the gate to be locked
-        setShowModal(true); // Show the authentication modal
-        setStep("enter"); // Reset to the initial 'enter' step
-        setError(""); // Clear any previous errors
-        setInputValue(""); // Clear input fields
-        setPattern([]); // Clear pattern input
-      }
-      setConfig(cfg); // Update the configuration state
-    } catch (err) {
-      console.error("Error fetching config:", err);
-      setError("Failed to fetch security settings. Access granted for now."); // Inform user but allow access
-      setIsVerified(true); // Grant access in case of fetch error to prevent blocking
-      setForceLock(false);
-      setShowModal(false);
-      setAuthMethod(null);
-    }
-  }, [user]);
-
-  // Initial config fetch on component mount or user change
   useEffect(() => {
     if (user) {
       fetchConfig();
-    } else if (!loadingUser) {
-      setIsVerified(true);
-      setForceLock(false);
-      setShowModal(false);
+    } else {
+      // If no user, stop loading and show an error
+      setLoading(false);
       setError("User not authenticated. Please log in.");
-      setAuthMethod(null);
     }
-  }, [user, loadingUser, fetchConfig]);
+  }, [user]);
 
-  // Force lock on tab switch (visibility change)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && user) {
-        setIsVerified(false);
-        setForceLock(true);
-        setShowModal(true);
-        setStep("enter");
-        setError("");
-        setInputValue("");
-        setPattern([]);
-        setConfig(null);
-        setAuthMethod(null);
-        fetchConfig();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [user, fetchConfig]);
-
-  const verify = async () => {
-    setVerifying(true); // Start loading spinner
-    setError(""); // Clear previous errors
-
+  const fetchConfig = async () => {
     try {
-      if (authMethod === "biometric") {
+      setLoading(true); // Ensure loading is true at the start of fetch
+      const res = await axios.get(`${API}/${user.uid}`);
+      const cfg = res.data.config;
+      setConfig(cfg);
+
+      if (cfg.securityQuestions && cfg.securityQuestions.length > 0) {
+        setSecurityQuestions(cfg.securityQuestions.map(q => ({ question: q.question, answer: "" })));
+      }
+
+      if (cfg.securityQuestionsLastUpdatedAt) {
+        const lastUpdated = new Date(cfg.securityQuestionsLastUpdatedAt);
+        const sixMonthsLater = new Date(lastUpdated.setMonth(lastUpdated.getMonth() + 6));
+        const now = new Date();
+
+        if (now < sixMonthsLater) {
+          setCanChangeSecurityQuestions(false);
+          setNextChangeDate(sixMonthsLater);
+        } else {
+          setCanChangeSecurityQuestions(true);
+          setNextChangeDate(null);
+        }
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching security config:", err);
+      setError("Failed to fetch security settings.");
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = async (method) => {
+    const isEnabled = config?.[`${method}Enabled`];
+
+    if (isEnabled) {
+      // Logic for disabling a method
+      try {
+        setIsSaving(true); // Start saving indicator
+        const updated = { userId: user.uid };
+        updated[`${method}Enabled`] = false;
+        const res = await axios.put(`${API}/${user.uid}`, updated);
+        setConfig(res.data);
+        setSuccessMessage(`${method.charAt(0).toUpperCase() + method.slice(1)} has been disabled.`);
+        setError(""); // Clear any previous errors
+      } catch (err) {
+        console.error(`Failed to disable ${method}:`, err);
+        setError(`Failed to disable ${method}.`);
+        setSuccessMessage(""); // Clear any previous success messages
+      } finally {
+        setIsSaving(false); // End saving indicator
+      }
+      return;
+    }
+
+    // Logic for enabling a method
+    if (method === "biometric") {
+      try {
+        setIsSaving(true);
+        setError("");
+        setSuccessMessage("");
+
+        // Check for WebAuthn support
         if (!window.PublicKeyCredential) {
           throw new Error("WebAuthn (Biometric) is not supported in this browser or environment (requires HTTPS).");
         }
 
-        // In a real app, you'd fetch a challenge from your backend for security
-        // For this example, we'll use a dummy challenge.
+        // Generate a challenge from the server for registration
+        // In a real app, this would be a fetch to your backend to get a challenge
+        // For this example, we'll use a dummy challenge
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
 
-        const publicKeyCredentialRequestOptions = {
+        const publicKeyCredentialCreationOptions = {
           challenge: challenge,
-          allowCredentials: [{
-            id: new TextEncoder().encode(user.uid), // Use user ID as credential ID for simplicity
-            type: 'public-key',
-            transports: ['internal'] // 'internal' for platform authenticators (fingerprint, face ID)
-          }],
-          userVerification: "required", // Require biometric verification
+          rp: { name: "Wealth Management App", id: window.location.hostname },
+          user: {
+            id: new TextEncoder().encode(user.uid),
+            name: user.email || user.uid,
+            displayName: user.email || user.uid,
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }], // ES256, RS256
+          authenticatorSelection: {
+            authenticatorAttachment: "platform", // Use platform authenticators (e.g., built-in fingerprint)
+            userVerification: "required", // Require biometric verification
+          },
           timeout: 60000,
+          attestation: "none",
         };
 
-        const credential = await navigator.credentials.get({
-          publicKey: publicKeyCredentialRequestOptions,
+        const credential = await navigator.credentials.create({
+          publicKey: publicKeyCredentialCreationOptions,
         });
 
-        // In a real app, you would send 'credential' to your backend for verification
-        // For this demo, we'll just simulate success after the biometric prompt.
-        console.log("Biometric credential obtained:", credential);
-        setIsVerified(true);
-        setForceLock(false);
-        setShowModal(false);
-        setError("");
-        // No input to clear for biometric
-      } else {
-        let valueToVerify = inputValue;
-        if (authMethod === "pattern") {
-          if (pattern.length < 3) {
-            setError("Pattern must connect at least 3 dots.");
-            setVerifying(false);
-            return;
-          }
-          valueToVerify = JSON.stringify(pattern); // Convert pattern array to string for API
-        }
-
-        const res = await axios.post(`${API}/verify`, {
+        // If credential creation is successful, send a simplified public key to your backend
+        // In a real app, you'd send credential.rawId, credential.response.attestationObject, etc.
+        // For this demo, we'll just update the enabled status.
+        const updated = {
           userId: user.uid,
-          value: valueToVerify,
-          method: authMethod,
-        });
-        if (res.data.success) {
-          setIsVerified(true);
-          setForceLock(false);
-          setShowModal(false);
-          setInputValue("");
-          setPattern([]); // Clear pattern after successful verification
-          setError("");
+          biometricEnabled: true,
+          pinEnabled: false,
+          passwordEnabled: false,
+          patternEnabled: false,
+        };
+        const res = await axios.put(`${API}/${user.uid}`, updated);
+        setConfig(res.data);
+        setSuccessMessage("Biometric authentication enabled successfully!");
+      } catch (err) {
+        console.error("Failed to enable biometric authentication:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          setError("Biometric setup cancelled or denied by user.");
+        } else if (err.message.includes("supported")) {
+          setError(err.message);
         } else {
-          setError("Invalid " + authMethod);
+          setError("Failed to enable biometric authentication. Ensure your device has a biometric sensor configured and try again on HTTPS.");
         }
+      } finally {
+        setIsSaving(false);
       }
-    } catch (err) {
-      console.error("Verification failed:", err);
-      if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-        setError("Biometric verification cancelled or denied by user.");
-      } else if (err.message.includes("supported")) {
-        setError(err.message);
-      } else {
-        setError("Verification failed. Please try again.");
-      }
-    } finally {
-      setVerifying(false); // Stop loading spinner
+      return;
     }
+
+    // For PIN, Password, Pattern
+    setMode(method);
+    setActiveMethod(method);
+    setValue("");
+    setConfirmValue("");
+    setPattern([]);
+    setConfirmPattern([]);
+    setError("");
+    setSuccessMessage("");
   };
 
-  const sendResetEmail = async () => {
-    setVerifying(true); // Start loading spinner
-    setError("");
-    try {
-      const res = await axios.post(`${API}/request-method-reset`, {
-        userId: user.uid,
-        email: user.email,
-        methodToReset: authMethod,
-      });
-      if (res.data.success) {
-        setStep("verify-code");
-        setError("");
-      } else {
-        setError("Failed to send reset email.");
-      }
-    } catch (err) {
-      console.error("Error sending reset code:", err);
-      setError(err.response?.data?.message || "Error sending reset code.");
-    } finally {
-      setVerifying(false); // Stop loading spinner
+  const handleSubmit = async () => {
+    const method = activeMethod;
+
+    if (!user || !user.uid) {
+      setError("User not authenticated. Cannot save settings.");
+      return;
     }
-  };
 
-  const resetWithToken = async () => {
-    setVerifying(true); // Start loading spinner
-    setError("");
+    setIsSaving(true); // Start saving indicator
+
     try {
-      // For pattern reset, newValue would need to be a stringified pattern
-      const valueToReset = authMethod === "pattern" ? JSON.stringify(pattern) : newValue;
+      if (method === "pattern") {
+        // Validate pattern length before submission
+        if (pattern.length < 3 || confirmPattern.length < 3) {
+          setError("Pattern must connect at least 3 dots.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
 
-      const res = await axios.post(`${API}/reset-method-with-token`, {
-        userId: user.uid,
-        token,
-        methodType: authMethod,
-        newValue: valueToReset,
-      });
-      if (res.data.success) {
-        setIsVerified(true);
-        setForceLock(false);
-        setShowModal(false);
-        setStep("enter");
-        setInputValue("");
+        if (JSON.stringify(pattern) !== JSON.stringify(confirmPattern)) {
+          setError("Patterns do not match.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
+
+        // Dynamically import bcryptjs
+        const bcrypt = await import("bcryptjs");
+        const hash = await bcrypt.hash(JSON.stringify(pattern), 10);
+        const updated = {
+          userId: user.uid,
+          patternHash: hash,
+          patternEnabled: true,
+          pinEnabled: false,
+          passwordEnabled: false,
+          biometricEnabled: false, // Disable other methods
+        };
+        const res = await axios.put(`${API}/${user.uid}`, updated);
+        setConfig(res.data);
         setPattern([]);
-        setNewValue("");
-        setToken("");
+        setConfirmPattern([]);
+        setMode(null);
+        setSuccessMessage("Pattern has been set successfully.");
         setError("");
-      } else {
-        setError("Reset failed.");
+      } else { // For PIN and Password
+        const trimmedValue = value.trim();
+        const trimmedConfirm = confirmValue.trim();
+
+        if (!trimmedValue || !trimmedConfirm) {
+          setError("Both fields are required.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
+
+        if (trimmedValue !== trimmedConfirm) {
+          setError("Values do not match.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
+
+        if (method === "pin" && !/^\d{6}$/.test(trimmedValue)) {
+          setError("PIN must be exactly 6 digits.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
+
+        if (method === "password" && !/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{6,}$/.test(trimmedValue)) {
+          setError("Password must be at least 6 characters, include a capital letter, a digit, and a special character.");
+          setIsSaving(false); // End saving indicator if validation fails
+          return;
+        }
+
+        // Dynamically import bcryptjs
+        const bcrypt = await import("bcryptjs");
+        const hash = await bcrypt.hash(trimmedValue, 10);
+        const updated = { userId: user.uid };
+        updated[`${method}Hash`] = hash;
+        updated[`${method}Enabled`] = true;
+
+        const otherMethods = ["pin", "password", "pattern", "biometric"].filter(m => m !== method); // Include biometric
+        otherMethods.forEach(m => updated[`${m}Enabled`] = false);
+
+        const res = await axios.put(`${API}/${user.uid}`, updated);
+        setConfig(res.data);
+        setMode(null);
+        setValue("");
+        setConfirmValue("");
+        setSuccessMessage(`${method.charAt(0).toUpperCase() + method.slice(1)} has been set successfully.`);
+        setError("");
       }
     } catch (err) {
-      console.error("Error resetting method:", err);
-      setError("Error resetting method.");
+      console.error("Failed to set authentication method:", err);
+      setError("Failed to set authentication method.");
+      setSuccessMessage("");
     } finally {
-      setVerifying(false); // Stop loading spinner
+      setIsSaving(false); // End saving indicator
     }
   };
 
-  const verifyAnswer = async () => {
-    setVerifying(true); // Start loading spinner
+  const handleSecurityQuestionChange = (index, field, newValue) => {
+    const newQuestions = [...securityQuestions];
+    if (field === "question") {
+      const selected = newQuestions.map((q) => q.question);
+      if (selected.includes(newValue) && selected.indexOf(newValue) !== index) {
+        setError("Each question must be unique.");
+        return;
+      }
+    }
+    newQuestions[index][field] = newValue;
+    setSecurityQuestions(newQuestions);
     setError("");
+  };
+
+  const handleSaveSecurityQuestions = async () => {
+    if (!user || !user.uid) {
+      setError("User not authenticated. Cannot save security questions.");
+      return;
+    }
+
+    setIsSaving(true); // Start saving indicator
+
     try {
-      const res = await axios.post(`${API}/verify-security-answer`, {
-        userId: user.uid,
-        question: selectedQuestion,
-        answer,
-      });
-      if (res.data.success) {
-        setIsVerified(true);
-        setForceLock(false);
-        setShowModal(false);
-        setStep("enter");
-        setAnswer("");
-        setSelectedQuestion("");
-        setError("");
-      } else {
-        setError("Incorrect answer.");
+      const hasEmptyFields = securityQuestions.some(q => !q.question || !q.answer.trim());
+      if (hasEmptyFields) {
+        setError("Please complete all questions and answers.");
+        setIsSaving(false); // End saving indicator if validation fails
+        return;
       }
+
+      const unique = new Set(securityQuestions.map(q => q.question));
+      if (unique.size !== 3) {
+        setError("Please choose 3 different questions.");
+        setIsSaving(false); // End saving indicator if validation fails
+        return;
+      }
+
+      // Hash the answers before sending to the backend for security
+      const bcrypt = await import("bcryptjs");
+      const questionsWithHashedAnswers = await Promise.all(
+        securityQuestions.map(async (q) => ({
+          question: q.question,
+          answerHash: await bcrypt.hash(q.answer.trim(), 10),
+        }))
+      );
+
+      await axios.put(`${API}/security-questions/${user.uid}`, {
+        questions: questionsWithHashedAnswers,
+      });
+      setSuccessMessage("Security questions updated successfully.");
+      setShowSecurityQuestionsForm(false);
+      setError("");
+      fetchConfig(); // Re-fetch config to update last updated date and lock status
     } catch (err) {
-      console.error("Verification error:", err);
-      setError("Verification error.");
+      console.error("Failed to save security questions:", err);
+      setError("Failed to save security questions.");
+      setSuccessMessage("");
     } finally {
-      setVerifying(false); // Stop loading spinner
+      setIsSaving(false); // End saving indicator
     }
   };
 
-  // 🔐 FINAL GUARD: Don't render anything while locked
-  // Show modal if user is loading, or if user exists but is not verified AND forceLock is true
-  if (loadingUser || !user || (forceLock && !isVerified)) {
+  // Render a loading spinner with a message if the component is still loading
+  if (loading) {
     return (
-      <Modal show={showModal} centered backdrop="static" keyboard={false}>
-        <Modal.Header>
-          <Modal.Title>
-            {loadingUser || !user ? "Loading User..." :
-              config === null ? "Checking Security Settings..." :
-              authMethod ? ({
-                enter: `Enter your ${authMethod}`,
-                forgot: `Forgot ${authMethod}`,
-                "verify-code": "Enter Reset Code",
-                "set-new": `Set New ${authMethod}`,
-              })[step] || `Verify with ${authMethod}` : "Security Check"} {/* Fallback for biometric title */}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {loadingUser || !user ? (
-            <div className="text-center">
-              <Spinner animation="border" className="mb-3" />
-              <p>{loadingUser ? "Authenticating user..." : "Please log in to access."}</p>
-            </div>
-          ) : config === null ? (
-            <div className="text-center">
-              <Spinner animation="border" className="mb-3" />
-              <p>Loading security configuration...</p>
-            </div>
-          ) : (
-            <>
-              {error && <Alert variant="danger">{error}</Alert>}
-
-              {step === "enter" && authMethod && (
-                <>
-                  {authMethod === "biometric" ? (
-                    <div className="text-center p-3">
-                      <p className="lead">
-                        {verifying ? "Scanning fingerprint..." : "Please verify with your biometric sensor."}
-                      </p>
-                      {verifying ? (
-                        <Spinner animation="border" className="mb-3" />
-                      ) : (
-                        <Button onClick={verify} disabled={verifying}>
-                          Verify with Biometric
-                        </Button>
-                      )}
-                      <p className="mt-3 text-muted">
-                        (e.g., Fingerprint, Face ID via Windows Hello/Touch ID)
-                      </p>
-                    </div>
-                  ) : authMethod === "pattern" ? (
-                    <div className="text-center p-3 rounded" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
-                      <p className="fw-semibold">Draw Your Pattern</p>
-                      <PatternLock
-                        width={250}
-                        size={3}
-                        path={pattern}
-                        onChange={(pts) => setPattern(pts || [])}
-                        onFinish={() => {
-                          if (pattern.length < 3) {
-                            setError("Pattern must connect at least 3 dots.");
-                          } else {
-                            setError("");
-                          }
-                        }}
-                        disabled={verifying}
-                      />
-                    </div>
-                  ) : (
-                    <Form.Control
-                      type={authMethod === "password" ? "password" : "text"}
-                      inputMode={authMethod === "pin" ? "numeric" : "text"}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      placeholder={`Enter ${authMethod}`}
-                      autoFocus
-                      disabled={verifying}
-                    />
-                  )}
-                  <div className="mt-3 d-flex justify-content-between">
-                    {authMethod !== "biometric" && ( // Only show verify button for non-biometric methods
-                      <Button onClick={verify} disabled={verifying}>
-                        {verifying ? (
-                          <>
-                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Verifying...
-                          </>
-                        ) : (
-                          "Verify"
-                        )}
-                      </Button>
-                    )}
-                    <Button variant="link" onClick={() => setStep("forgot")} disabled={verifying}>Forgot?</Button>
-                  </div>
-                </>
-              )}
-
-              {step === "forgot" && (
-                <>
-                  <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={verifying}>
-                    {verifying ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
-                      </>
-                    ) : (
-                      "Send Reset Code to Email"
-                    )}
-                  </Button>
-                  {config?.securityQuestions?.length > 0 && (
-                    <>
-                      <Form.Select
-                        className="mb-2"
-                        value={selectedQuestion}
-                        onChange={(e) => setSelectedQuestion(e.target.value)}
-                        disabled={verifying}
-                      >
-                        <option value="">Choose Security Question</option>
-                        {config.securityQuestions.map((q, i) => (
-                          <option key={i} value={q.question}>{q.question}</option>
-                        ))}
-                      </Form.Select>
-                      <Form.Control
-                        type="text"
-                        className="mb-2"
-                        placeholder="Answer"
-                        value={answer}
-                        onChange={(e) => setAnswer(e.target.value)}
-                        disabled={verifying}
-                      />
-                      <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={verifying}>
-                        {verifying ? (
-                          <>
-                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
-                          </>
-                        ) : (
-                          "Submit Answer"
-                        )}
-                      </Button>
-                    </>
-                  )}
-                  <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
-                    I remember my {authMethod}
-                  </Button>
-                </>
-              )}
-
-              {step === "verify-code" && (
-                <>
-                  <Form.Control
-                    className="mb-2"
-                    placeholder="Reset Code"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    disabled={verifying}
-                  />
-                  {authMethod === "pattern" ? (
-                    <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
-                      <p className="fw-semibold">Draw New Pattern</p>
-                      <PatternLock
-                        width={250}
-                        size={3}
-                        path={pattern}
-                        onChange={(pts) => setPattern(pts || [])}
-                        onFinish={() => {
-                          if (pattern.length < 3) {
-                            setError("New pattern must connect at least 3 dots.");
-                          } else {
-                            setError("");
-                          }
-                        }}
-                        disabled={verifying}
-                      />
-                    </div>
-                  ) : (
-                    <Form.Control
-                      className="mb-2"
-                      type={authMethod === "password" ? "password" : "text"}
-                      inputMode={authMethod === "pin" ? "numeric" : "text"}
-                      placeholder={`New ${authMethod}`}
-                      value={newValue}
-                      onChange={(e) => setNewValue(e.target.value)}
-                      disabled={verifying}
-                    />
-                  )}
-                  <Button className="w-100 mb-2" onClick={resetWithToken} disabled={verifying}>
-                    {verifying ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Resetting...
-                      </>
-                    ) : (
-                      "Reset"
-                    )}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
-                    I remember my {authMethod}
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-        </Modal.Body>
-      </Modal>
+      <div className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '80vh' }}>
+        <Spinner animation="border" role="status" className="mb-3" />
+        <p className="text-muted">Loading security settings...</p>
+      </div>
     );
   }
 
-  // ✅ Unlock everything
-  return <>{children}</>;
+  return (
+    <Card className="p-4 shadow-sm my-4 mx-auto" style={{ maxWidth: "600px" }}>
+      <h3 className="mb-3 text-center">Security Settings</h3>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {successMessage && <Alert variant="success">{successMessage}</Alert>}
+
+      <Row className="g-3">
+        {["pin", "password", "pattern", "biometric"].map((method) => ( // Added "biometric"
+          <Col xs={12} md={4} key={method}>
+            <Form.Check
+              type="switch"
+              label={`Enable ${method.charAt(0).toUpperCase() + method.slice(1)}`}
+              checked={config?.[`${method}Enabled`] || false}
+              onChange={() => handleToggle(method)}
+              id={`${method}-switch`} // Added unique id for accessibility
+              disabled={isSaving} // Disable toggle while saving
+            />
+          </Col>
+        ))}
+
+        {mode === "pin" && (
+          <Col xs={12}>
+            <Card className="p-3">
+              <h5>Set a 6-digit PIN</h5>
+              <Form.Control
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter 6-digit PIN"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="mt-2"
+                maxLength={6} // Ensure only 6 digits can be entered
+                disabled={isSaving} // Disable input while saving
+              />
+              <Form.Control
+                type="text"
+                inputMode="numeric"
+                placeholder="Confirm 6-digit PIN"
+                value={confirmValue}
+                onChange={(e) => setConfirmValue(e.target.value)}
+                className="mt-2"
+                maxLength={6} // Ensure only 6 digits can be entered
+                disabled={isSaving} // Disable input while saving
+              />
+              <Button onClick={handleSubmit} className="mt-3 w-100" disabled={isSaving}>
+                {isSaving && activeMethod === "pin" ? (
+                  <>
+                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Saving...
+                  </>
+                ) : (
+                  "Save PIN"
+                )}
+              </Button>
+            </Card>
+          </Col>
+        )}
+
+        {mode === "password" && (
+          <Col xs={12}>
+            <Card className="p-3">
+              <h5>Set a Strong Password</h5>
+              <Form.Control
+                type="password"
+                placeholder="Enter Password"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="mt-2"
+                disabled={isSaving} // Disable input while saving
+              />
+              <Form.Control
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmValue}
+                onChange={(e) => setConfirmValue(e.target.value)}
+                className="mt-2"
+                disabled={isSaving} // Disable input while saving
+              />
+              <Button onClick={handleSubmit} className="mt-3 w-100" disabled={isSaving}>
+                {isSaving && activeMethod === "password" ? (
+                  <>
+                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Saving...
+                  </>
+                ) : (
+                  "Save Password"
+                )}
+              </Button>
+            </Card>
+          </Col>
+        )}
+
+        {mode === "pattern" && (
+          <Col xs={12}>
+            <Card className="p-3 text-center">
+              <h5>Draw and Confirm Your Pattern</h5>
+              <div className="mt-3 p-3 bg-light rounded">
+                <p className="fw-semibold">Draw Pattern</p>
+                <PatternLock
+                  width={250}
+                  size={3}
+                  path={pattern}
+                  onChange={(pts) => setPattern(pts || [])}
+                  onFinish={() => {
+                    if (pattern.length < 3) {
+                      setError("Pattern must connect at least 3 dots.");
+                    } else {
+                      setError("");
+                    }
+                  }}
+                />
+              </div>
+              <div className="mt-4 p-3 bg-light rounded">
+                <p className="fw-semibold">Confirm Pattern</p>
+                <PatternLock
+                  width={250}
+                  size={3}
+                  path={confirmPattern}
+                  onChange={(pts) => setConfirmPattern(pts || [])}
+                  onFinish={() => {
+                    if (confirmPattern.length < 3) {
+                      setError("Confirm pattern must connect at least 3 dots.");
+                    } else {
+                      setError("");
+                    }
+                  }}
+                />
+              </div>
+              <Button className="mt-4 w-100" onClick={handleSubmit} disabled={isSaving}>
+                {isSaving && activeMethod === "pattern" ? (
+                  <>
+                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Saving...
+                  </>
+                ) : (
+                  "Save Pattern"
+                )}
+              </Button>
+            </Card>
+          </Col>
+        )}
+      </Row>
+
+      <hr className="my-4" />
+      <h4 className="text-center">Security Questions</h4>
+
+      {config?.securityQuestionsLastUpdatedAt && !canChangeSecurityQuestions && (
+        <Alert variant="info" className="text-center">
+          You can update your security questions again on {nextChangeDate ? format(nextChangeDate, "PPP") : "N/A"}.
+        </Alert>
+      )}
+
+      <div className="d-grid gap-2">
+        <Button
+          variant="primary"
+          disabled={!canChangeSecurityQuestions || isSaving} // Disable button while saving
+          onClick={() => {
+            setShowSecurityQuestionsForm(!showSecurityQuestionsForm);
+            setError("");
+            setSuccessMessage("");
+          }}
+        >
+          {showSecurityQuestionsForm ? "Hide Questions Form" : "Set/Update Security Questions"}
+        </Button>
+      </div>
+
+      {showSecurityQuestionsForm && (
+        <Form className="mt-3">
+          {securityQuestions.map((q, idx) => (
+            <div key={idx} className="mb-3">
+              <Form.Group>
+                <Form.Label>Question {idx + 1}</Form.Label>
+                <Dropdown className="mb-2">
+                  <Dropdown.Toggle className="w-100" variant="outline-secondary" disabled={isSaving}>
+                    {q.question || "Choose a question"}
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu>
+                    {FIXED_SECURITY_QUESTIONS.map((fixedQ, i) => (
+                      <Dropdown.Item
+                        key={i}
+                        disabled={securityQuestions.some((sq, j) => j !== idx && sq.question === fixedQ) || isSaving}
+                        onClick={() => handleSecurityQuestionChange(idx, "question", fixedQ)}
+                      >
+                        {fixedQ}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown>
+              </Form.Group>
+              <Form.Control
+                type="text"
+                placeholder="Enter your answer"
+                value={q.answer}
+                onChange={(e) => handleSecurityQuestionChange(idx, "answer", e.target.value)}
+                disabled={isSaving} // Disable input while saving
+              />
+            </div>
+          ))}
+          <Button className="w-100 mt-3" onClick={handleSaveSecurityQuestions} disabled={isSaving}>
+            {isSaving && showSecurityQuestionsForm ? ( // Check if saving and security questions form is active
+              <>
+                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Saving...
+              </>
+            ) : (
+              "Save Security Questions"
+            )}
+          </Button>
+        </Form>
+      )}
+    </Card>
+  );
 };
 
-export default SecurityGate;
+export default SecuritySettings;
