@@ -22,6 +22,14 @@ const FIXED_SECURITY_QUESTIONS = [
   "What is your favorite movie?",
 ];
 
+// Helper function to convert ArrayBuffer to Base64Url
+function arrayBufferToBase64url(buffer) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
 const SecuritySettings = () => {
   const [user] = useAuthState(auth);
   const [loading, setLoading] = useState(true);
@@ -98,6 +106,12 @@ const SecuritySettings = () => {
         setIsSaving(true); // Start saving indicator
         const updated = { userId: user.uid };
         updated[`${method}Enabled`] = false;
+        
+        // When disabling biometric, also clear its credentials
+        if (method === "biometric") {
+          updated.biometricCredentials = [];
+        }
+
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
         setSuccessMessage(`${method.charAt(0).toUpperCase() + method.slice(1)} has been disabled.`);
@@ -151,16 +165,31 @@ const SecuritySettings = () => {
           publicKey: publicKeyCredentialCreationOptions,
         });
 
-        // If credential creation is successful, send a simplified public key to your backend
-        // In a real app, you'd send credential.rawId, credential.response.attestationObject, etc.
-        // For this demo, we'll just update the enabled status.
+        // Extract credential data and convert to Base64Url for storage
+        const credentialID = arrayBufferToBase64url(credential.rawId);
+        const publicKey = arrayBufferToBase64url(credential.response.getPublicKey().buffer);
+        const transports = credential.response.getTransports(); // Get transports if available
+
+        const newBiometricCredential = {
+          credentialID: credentialID,
+          publicKey: publicKey,
+          counter: 0, // Initial counter, should be managed by backend
+          transports: transports || [],
+        };
+
         const updated = {
           userId: user.uid,
           biometricEnabled: true,
+          // Add the new credential to the array of existing credentials
+          // Or replace if you only want one biometric credential per user for simplicity
+          biometricCredentials: [...(config?.biometricCredentials || []), newBiometricCredential],
           pinEnabled: false,
           passwordEnabled: false,
           patternEnabled: false,
         };
+        // Remove biometricHash as it's not used for WebAuthn
+        delete updated.biometricHash; 
+
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
         setSuccessMessage("Biometric authentication enabled successfully!");
@@ -225,7 +254,11 @@ const SecuritySettings = () => {
           pinEnabled: false,
           passwordEnabled: false,
           biometricEnabled: false, // Disable other methods
+          biometricCredentials: [], // Clear biometric credentials when another method is set
         };
+        // Remove biometricHash as it's not used for WebAuthn
+        delete updated.biometricHash; 
+
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
         setPattern([]);
@@ -270,6 +303,12 @@ const SecuritySettings = () => {
 
         const otherMethods = ["pin", "password", "pattern", "biometric"].filter(m => m !== method); // Include biometric
         otherMethods.forEach(m => updated[`${m}Enabled`] = false);
+        // Clear biometric credentials if another method is chosen
+        if (method !== "biometric") {
+          updated.biometricCredentials = [];
+        }
+        // Remove biometricHash as it's not used for WebAuthn
+        delete updated.biometricHash; 
 
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
