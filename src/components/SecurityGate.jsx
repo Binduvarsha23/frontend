@@ -199,12 +199,15 @@ const SecurityGate = ({ children }) => {
       }
     } catch (err) {
       console.error("Verification failed:", err);
+      // More specific error messages
       if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
         setError("Biometric verification cancelled or denied by user.");
       } else if (err.message.includes("supported")) {
         setError(err.message);
       } else if (err.message.includes("No biometric credential registered")) {
         setError(err.message); // Display the specific error for no credential
+      } else if (axios.isAxiosError(err) && err.response?.data?.message) {
+          setError(err.response.data.message); // Display backend error message
       }
       else {
         setError("Verification failed. Please try again.");
@@ -227,11 +230,13 @@ const SecurityGate = ({ children }) => {
         setStep("verify-code");
         setError("");
       } else {
-        setError("Failed to send reset email.");
+        // Display backend error message if available
+        setError(res.data.message || "Failed to send reset email.");
       }
     } catch (err) {
       console.error("Error sending reset code:", err);
-      setError(err.response?.data?.message || "Error sending reset code.");
+      // Display backend error message if available
+      setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Error sending reset code.");
     } finally {
       setVerifying(false); // Stop loading spinner
     }
@@ -261,11 +266,13 @@ const SecurityGate = ({ children }) => {
         setToken("");
         setError("");
       } else {
-        setError("Reset failed.");
+        // Display backend error message if available
+        setError(res.data.message || "Reset failed.");
       }
     } catch (err) {
       console.error("Error resetting method:", err);
-      setError("Error resetting method.");
+      // Display backend error message if available
+      setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Error resetting method.");
     } finally {
       setVerifying(false); // Stop loading spinner
     }
@@ -289,11 +296,13 @@ const SecurityGate = ({ children }) => {
         setSelectedQuestion("");
         setError("");
       } else {
-        setError("Incorrect answer.");
+        // Display backend error message if available
+        setError(res.data.message || "Incorrect answer.");
       }
     } catch (err) {
       console.error("Verification error:", err);
-      setError("Verification error.");
+      // Display backend error message if available
+      setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Verification error.");
     } finally {
       setVerifying(false); // Stop loading spinner
     }
