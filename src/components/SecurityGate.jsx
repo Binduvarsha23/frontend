@@ -278,7 +278,7 @@ const SecurityGate = ({ children }) => {
       const res = await axios.post(`${API}/verify-security-answer`, {
         userId: user.uid,
         question: selectedQuestion,
-        answer,
+        answer: answer.trim(), // IMPORTANT FIX: Trim the answer here
       });
       if (res.data.success) {
         setIsVerified(true);
@@ -390,57 +390,73 @@ const SecurityGate = ({ children }) => {
                         )}
                       </Button>
                     )}
-                    <Button variant="link" onClick={() => setStep("forgot")} disabled={verifying}>Forgot?</Button>
+                    <Button
+                      variant="link"
+                      onClick={() => setStep("forgot")}
+                      disabled={verifying || authMethod === "biometric"} // Disable "Forgot?" for biometric
+                      title={authMethod === "biometric" ? "Biometric cannot be reset via this method. Please re-enable it in Security Settings." : "Forgot your credentials?"}
+                    >
+                      Forgot?
+                    </Button>
                   </div>
                 </>
               )}
 
               {step === "forgot" && (
                 <>
-                  <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={verifying}>
-                    {verifying ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
-                      </>
-                    ) : (
-                      "Send Reset Code to Email"
-                    )}
-                  </Button>
-                  {config?.securityQuestions?.length > 0 && (
+                  {authMethod === "biometric" ? (
+                      <Alert variant="info" className="text-center">
+                        Biometric authentication cannot be reset via email or security questions.
+                        To reset or re-register, please disable and re-enable it in your Security Settings.
+                      </Alert>
+                  ) : (
                     <>
-                      <Form.Select
-                        className="mb-2"
-                        value={selectedQuestion}
-                        onChange={(e) => setSelectedQuestion(e.target.value)}
-                        disabled={verifying}
-                      >
-                        <option value="">Choose Security Question</option>
-                        {config.securityQuestions.map((q, i) => (
-                          <option key={i} value={q.question}>{q.question}</option>
-                        ))}
-                      </Form.Select>
-                      <Form.Control
-                        type="text"
-                        className="mb-2"
-                        placeholder="Answer"
-                        value={answer}
-                        onChange={(e) => setAnswer(e.target.value)}
-                        disabled={verifying}
-                      />
-                      <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={verifying}>
+                      <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={verifying}>
                         {verifying ? (
                           <>
-                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
+                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
                           </>
                         ) : (
-                          "Submit Answer"
+                          "Send Reset Code to Email"
                         )}
+                      </Button>
+                      {config?.securityQuestions?.length > 0 && (
+                        <>
+                          <Form.Select
+                            className="mb-2"
+                            value={selectedQuestion}
+                            onChange={(e) => setSelectedQuestion(e.target.value)}
+                            disabled={verifying}
+                          >
+                            <option value="">Choose Security Question</option>
+                            {config.securityQuestions.map((q, i) => (
+                              <option key={i} value={q.question}>{q.question}</option>
+                            ))}
+                          </Form.Select>
+                          <Form.Control
+                            type="text"
+                            className="mb-2"
+                            placeholder="Answer"
+                            value={answer}
+                            onChange={(e) => setAnswer(e.target.value)}
+                            disabled={verifying}
+                          />
+                          <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={verifying}>
+                            {verifying ? (
+                              <>
+                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
+                              </>
+                            ) : (
+                              "Submit Answer"
+                            )}
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
+                        I remember my {authMethod}
                       </Button>
                     </>
                   )}
-                  <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
-                    I remember my {authMethod}
-                  </Button>
                 </>
               )}
 
