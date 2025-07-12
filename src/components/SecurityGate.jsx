@@ -34,7 +34,10 @@ const SecurityGate = ({ children }) => {
   const [answer, setAnswer] = useState("");
   const [token, setToken] = useState("");
   const [newValue, setNewValue] = useState("");
-  const [verifying, setVerifying] = useState(false);
+  const [verifying, setVerifying] = useState(false); // For primary auth method verification
+  const [isSendingEmail, setIsSendingEmail] = useState(false); // New: For email sending spinner
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false); // New: For security answer submission spinner
+  const [isResettingMethod, setIsResettingMethod] = useState(false); // New: For reset with token spinner
   // Changed to an array to match backend schema's biometricCredentials
   const [biometricCredentials, setBiometricCredentials] = useState([]); 
 
@@ -126,7 +129,7 @@ const SecurityGate = ({ children }) => {
   }, [user, fetchConfig]);
 
   const verify = async () => {
-    setVerifying(true); // Start loading spinner
+    setVerifying(true); // Start loading spinner for primary verification
     setError(""); // Clear previous errors
 
     try {
@@ -218,7 +221,7 @@ const SecurityGate = ({ children }) => {
   };
 
   const sendResetEmail = async () => {
-    setVerifying(true); // Start loading spinner
+    setIsSendingEmail(true); // Start email sending spinner
     setError("");
     try {
       const res = await axios.post(`${API}/request-method-reset`, {
@@ -238,12 +241,12 @@ const SecurityGate = ({ children }) => {
       // Display backend error message if available
       setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Error sending reset code.");
     } finally {
-      setVerifying(false); // Stop loading spinner
+      setIsSendingEmail(false); // Stop email sending spinner
     }
   };
 
   const resetWithToken = async () => {
-    setVerifying(true); // Start loading spinner
+    setIsResettingMethod(true); // Start reset with token spinner
     setError("");
     try {
       // For pattern reset, newValue would need to be a stringified pattern
@@ -274,12 +277,12 @@ const SecurityGate = ({ children }) => {
       // Display backend error message if available
       setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Error resetting method.");
     } finally {
-      setVerifying(false); // Stop loading spinner
+      setIsResettingMethod(false); // Stop reset with token spinner
     }
   };
 
   const verifyAnswer = async () => {
-    setVerifying(true); // Start loading spinner
+    setIsSubmittingAnswer(true); // Start security answer submission spinner
     setError("");
     try {
       const res = await axios.post(`${API}/verify-security-answer`, {
@@ -304,7 +307,7 @@ const SecurityGate = ({ children }) => {
       // Display backend error message if available
       setError(axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : "Verification error.");
     } finally {
-      setVerifying(false); // Stop loading spinner
+      setIsSubmittingAnswer(false); // Stop security answer submission spinner
     }
   };
 
@@ -420,8 +423,8 @@ const SecurityGate = ({ children }) => {
                       </Alert>
                   ) : (
                     <>
-                      <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={verifying}>
-                        {verifying ? (
+                      <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                        {isSendingEmail ? (
                           <>
                             <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
                           </>
@@ -435,7 +438,7 @@ const SecurityGate = ({ children }) => {
                             className="mb-2"
                             value={selectedQuestion}
                             onChange={(e) => setSelectedQuestion(e.target.value)}
-                            disabled={verifying}
+                            disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
                           >
                             <option value="">Choose Security Question</option>
                             {config.securityQuestions.map((q, i) => (
@@ -448,10 +451,10 @@ const SecurityGate = ({ children }) => {
                             placeholder="Answer"
                             value={answer}
                             onChange={(e) => setAnswer(e.target.value)}
-                            disabled={verifying}
+                            disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
                           />
-                          <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={verifying}>
-                            {verifying ? (
+                          <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                            {isSubmittingAnswer ? (
                               <>
                                 <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
                               </>
@@ -461,7 +464,7 @@ const SecurityGate = ({ children }) => {
                           </Button>
                         </>
                       )}
-                      <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
+                      <Button variant="secondary" onClick={() => setStep("enter")} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
                         I remember my {authMethod}
                       </Button>
                     </>
@@ -476,7 +479,7 @@ const SecurityGate = ({ children }) => {
                     placeholder="Reset Code"
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    disabled={verifying}
+                    disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
                   />
                   {authMethod === "pattern" ? (
                     <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
@@ -493,7 +496,7 @@ const SecurityGate = ({ children }) => {
                             setError("");
                           }
                         }}
-                        disabled={verifying}
+                        disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
                       />
                     </div>
                   ) : (
@@ -504,11 +507,11 @@ const SecurityGate = ({ children }) => {
                       placeholder={`New ${authMethod}`}
                       value={newValue}
                       onChange={(e) => setNewValue(e.target.value)}
-                      disabled={verifying}
+                      disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
                     />
                   )}
-                  <Button className="w-100 mb-2" onClick={resetWithToken} disabled={verifying}>
-                    {verifying ? (
+                  <Button className="w-100 mb-2" onClick={resetWithToken} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                    {isResettingMethod ? (
                       <>
                         <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Resetting...
                       </>
@@ -516,7 +519,7 @@ const SecurityGate = ({ children }) => {
                       "Reset"
                     )}
                   </Button>
-                  <Button variant="secondary" onClick={() => setStep("enter")} disabled={verifying}>
+                  <Button variant="secondary" onClick={() => setStep("enter")} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
                     I remember my {authMethod}
                   </Button>
                 </>
