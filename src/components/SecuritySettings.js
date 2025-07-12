@@ -167,21 +167,22 @@ const SecuritySettings = () => {
 
         // Extract credential data and convert to Base64Url for storage
         const credentialID = arrayBufferToBase64url(credential.rawId);
+        // Note: credential.response.getPublicKey() returns an ArrayBuffer.
+        // It needs to be converted to Base64Url for storage in your string schema field.
         const publicKey = arrayBufferToBase64url(credential.response.getPublicKey().buffer);
         const transports = credential.response.getTransports(); // Get transports if available
 
         const newBiometricCredential = {
           credentialID: credentialID,
           publicKey: publicKey,
-          counter: 0, // Initial counter, should be managed by backend
+          counter: 0, // Initial counter, should be managed by backend during assertion
           transports: transports || [],
         };
 
         const updated = {
           userId: user.uid,
           biometricEnabled: true,
-          // Add the new credential to the array of existing credentials
-          // Or replace if you only want one biometric credential per user for simplicity
+          // IMPORTANT FIX: Include the new biometric credential in the array
           biometricCredentials: [...(config?.biometricCredentials || []), newBiometricCredential],
           pinEnabled: false,
           passwordEnabled: false,
