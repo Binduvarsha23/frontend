@@ -28,18 +28,18 @@ const SecurityGate = ({ children }) => {
   const [inputValue, setInputValue] = useState(""); // Used for PIN/Password
   const [pattern, setPattern] = useState([]); // Used for PatternLock
   const [error, setError] = useState("");
-  const [showModal, setShowModal] = useState(true);
+  const [showModal, setShowModal] = useState(false); // Initially hide modal
   const [step, setStep] = useState("enter");
   const [selectedQuestion, setSelectedQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [token, setToken] = useState("");
   const [newValue, setNewValue] = useState("");
   const [verifying, setVerifying] = useState(false); // For primary auth method verification
-  const [isSendingEmail, setIsSendingEmail] = useState(false); // New: For email sending spinner
-  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false); // New: For security answer submission spinner
-  const [isResettingMethod, setIsResettingMethod] = useState(false); // New: For reset with token spinner
-  // Changed to an array to match backend schema's biometricCredentials
+  const [isSendingEmail, setIsSendingEmail] = useState(false); // For email sending spinner
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false); // For security answer submission spinner
+  const [isResettingMethod, setIsResettingMethod] = useState(false); // For reset with token spinner
   const [biometricCredentials, setBiometricCredentials] = useState([]); 
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true); // New state for initial config loading
 
   // Memoized function to fetch configuration, preventing unnecessary re-renders
   const fetchConfig = useCallback(async () => {
@@ -48,11 +48,12 @@ const SecurityGate = ({ children }) => {
       setForceLock(false);
       setShowModal(false);
       setError("User not authenticated. Please log in.");
-      setAuthMethod(null);
+      setIsLoadingConfig(false); // Stop loading config if no user
       return;
     }
 
     try {
+      setIsLoadingConfig(true); // Start loading config
       const res = await axios.get(`${API}/${user.uid}`);
       const cfg = res.data.config;
 
@@ -67,8 +68,7 @@ const SecurityGate = ({ children }) => {
         // If setup is required or no security method is enabled, the gate should be unlocked.
         setIsVerified(true);
         setForceLock(false);
-        setAuthMethod(null);
-        setShowModal(false); // Crucial: Hide modal if no security is needed
+        setShowModal(false); // Hide modal
       } else {
         // A security method IS enabled, so the gate should be locked and modal shown.
         const methods = ["biometric", "pattern", "password", "pin"]; // Prioritize biometric
@@ -91,6 +91,8 @@ const SecurityGate = ({ children }) => {
       setForceLock(false);
       setShowModal(false);
       setAuthMethod(null);
+    } finally {
+      setIsLoadingConfig(false); // Stop loading config regardless of success/failure
     }
   }, [user]);
 
@@ -103,7 +105,7 @@ const SecurityGate = ({ children }) => {
       setForceLock(false);
       setShowModal(false);
       setError("User not authenticated. Please log in.");
-      setAuthMethod(null);
+      setIsLoadingConfig(false); // Stop loading if no user and auth is done
     }
   }, [user, loadingUser, fetchConfig]);
 
@@ -118,9 +120,9 @@ const SecurityGate = ({ children }) => {
         setError("");
         setInputValue("");
         setPattern([]);
-        setConfig(null);
+        setConfig(null); // Reset config to trigger re-fetch
         setAuthMethod(null);
-        fetchConfig();
+        fetchConfig(); // Re-fetch config to determine if lock is needed
       }
     };
 
@@ -311,15 +313,24 @@ const SecurityGate = ({ children }) => {
     }
   };
 
-  // 🔐 FINAL GUARD: Don't render anything while locked
-  // Show modal if user is loading, or if user exists but is not verified AND forceLock is true
-  if (loadingUser || !user || (forceLock && !isVerified)) {
+  // 🔐 Initial Loading Guard: Show a full-page spinner while config is loading
+  if (loadingUser || isLoadingConfig) {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+        <Spinner animation="border" role="status" className="mb-3" />
+        <p className="text-muted">Loading security configuration...</p>
+      </div>
+    );
+  }
+
+  // 🔐 FINAL GUARD: Don't render anything while locked (and config is loaded)
+  // Show modal if user exists but is not verified AND forceLock is true AND config is loaded
+  if (!isVerified && forceLock) {
     return (
       <Modal show={showModal} centered backdrop="static" keyboard={false}>
         <Modal.Header>
           <Modal.Title>
-            {loadingUser || !user ? "Loading User..." :
-              config === null ? "Checking Security Settings..." :
+            {config === null ? "Checking Security Settings..." : // Should not happen with isLoadingConfig
               authMethod ? ({
                 enter: `Enter your ${authMethod}`,
                 forgot: `Forgot ${authMethod}`,
@@ -329,201 +340,187 @@ const SecurityGate = ({ children }) => {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {loadingUser || !user ? (
-            <div className="text-center">
-              <Spinner animation="border" className="mb-3" />
-              <p>{loadingUser ? "Authenticating user..." : "Please log in to access."}</p>
-            </div>
-          ) : config === null ? (
-            <div className="text-center">
-              <Spinner animation="border" className="mb-3" />
-              <p>Loading security configuration...</p>
-            </div>
-          ) : (
+          {error && <Alert variant="danger">{error}</Alert>}
+
+          {step === "enter" && authMethod && (
             <>
-              {error && <Alert variant="danger">{error}</Alert>}
-
-              {step === "enter" && authMethod && (
-                <>
-                  {authMethod === "biometric" ? (
-                    <div className="text-center p-3">
-                      <p className="lead">
-                        {verifying ? "Scanning fingerprint..." : "Please verify with your biometric sensor."}
-                      </p>
-                      {verifying ? (
-                        <Spinner animation="border" className="mb-3" />
-                      ) : (
-                        <Button onClick={verify} disabled={verifying}>
-                          Verify with Biometric
-                        </Button>
-                      )}
-                      <p className="mt-3 text-muted">
-                        (e.g., Fingerprint, Face ID via Windows Hello/Touch ID)
-                      </p>
-                    </div>
-                  ) : authMethod === "pattern" ? (
-                    <div className="text-center p-3 rounded" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
-                      <p className="fw-semibold">Draw Your Pattern</p>
-                      <PatternLock
-                        width={250}
-                        size={3}
-                        path={pattern}
-                        onChange={(pts) => setPattern(pts || [])}
-                        onFinish={() => {
-                          if (pattern.length < 3) {
-                            setError("Pattern must connect at least 3 dots.");
-                          } else {
-                            setError("");
-                          }
-                        }}
-                        disabled={verifying}
-                      />
-                    </div>
+              {authMethod === "biometric" ? (
+                <div className="text-center p-3">
+                  <p className="lead">
+                    {verifying ? "Scanning biometric..." : "Please verify with your biometric sensor."}
+                  </p>
+                  {verifying ? (
+                    <Spinner animation="border" className="mb-3" />
                   ) : (
-                    <Form.Control
-                      type={authMethod === "password" ? "password" : "text"}
-                      inputMode={authMethod === "pin" ? "numeric" : "text"}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      placeholder={`Enter ${authMethod}`}
-                      autoFocus
-                      disabled={verifying}
-                    />
-                  )}
-                  <div className="mt-3 d-flex justify-content-between">
-                    {authMethod !== "biometric" && ( // Only show verify button for non-biometric methods
-                      <Button onClick={verify} disabled={verifying}>
-                        {verifying ? (
-                          <>
-                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Verifying...
-                          </>
-                        ) : (
-                          "Verify"
-                        )}
-                      </Button>
-                    )}
-                    <Button
-                      variant="link"
-                      onClick={() => setStep("forgot")}
-                      disabled={verifying || authMethod === "biometric"} // Disable "Forgot?" for biometric
-                      title={authMethod === "biometric" ? "Biometric cannot be reset via this method. Please re-enable it in Security Settings." : "Forgot your credentials?"}
-                    >
-                      Forgot?
+                    <Button onClick={verify} disabled={verifying}>
+                      Verify with Biometric
                     </Button>
-                  </div>
-                </>
+                  )}
+                  <p className="mt-3 text-muted">
+                    (e.g., Fingerprint, Face ID via Windows Hello/Touch ID)
+                  </p>
+                </div>
+              ) : authMethod === "pattern" ? (
+                <div className="text-center p-3 rounded" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
+                  <p className="fw-semibold">Draw Your Pattern</p>
+                  <PatternLock
+                    width={250}
+                    size={3}
+                    path={pattern}
+                    onChange={(pts) => setPattern(pts || [])}
+                    onFinish={() => {
+                      if (pattern.length < 3) {
+                        setError("Pattern must connect at least 3 dots.");
+                      } else {
+                        setError("");
+                      }
+                    }}
+                    disabled={verifying}
+                  />
+                </div>
+              ) : (
+                <Form.Control
+                  type={authMethod === "password" ? "password" : "text"}
+                  inputMode={authMethod === "pin" ? "numeric" : "text"}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder={`Enter ${authMethod}`}
+                  autoFocus
+                  disabled={verifying}
+                />
               )}
+              <div className="mt-3 d-flex justify-content-between">
+                {authMethod !== "biometric" && ( // Only show verify button for non-biometric methods
+                  <Button onClick={verify} disabled={verifying}>
+                    {verifying ? (
+                      <>
+                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Verifying...
+                      </>
+                    ) : (
+                      "Verify"
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="link"
+                  onClick={() => setStep("forgot")}
+                  disabled={verifying || authMethod === "biometric"} // Disable "Forgot?" for biometric
+                  title={authMethod === "biometric" ? "Biometric cannot be reset via this method. Please re-enable it in Security Settings." : "Forgot your credentials?"}
+                >
+                  Forgot?
+                </Button>
+              </div>
+            </>
+          )}
 
-              {step === "forgot" && (
+          {step === "forgot" && (
+            <>
+              {authMethod === "biometric" ? (
+                  <Alert variant="info" className="text-center">
+                    Biometric authentication cannot be reset via email or security questions.
+                    To reset or re-register, please disable and re-enable it in your Security Settings.
+                  </Alert>
+              ) : (
                 <>
-                  {authMethod === "biometric" ? (
-                      <Alert variant="info" className="text-center">
-                        Biometric authentication cannot be reset via email or security questions.
-                        To reset or re-register, please disable and re-enable it in your Security Settings.
-                      </Alert>
-                  ) : (
+                  <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                    {isSendingEmail ? (
+                      <>
+                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
+                      </>
+                    ) : (
+                      "Send Reset Code to Email"
+                    )}
+                  </Button>
+                  {config?.securityQuestions?.length > 0 && (
                     <>
-                      <Button className="w-100 mb-2" onClick={sendResetEmail} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
-                        {isSendingEmail ? (
+                      <Form.Select
+                        className="mb-2"
+                        value={selectedQuestion}
+                        onChange={(e) => setSelectedQuestion(e.target.value)}
+                        disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
+                      >
+                        <option value="">Choose Security Question</option>
+                        {config.securityQuestions.map((q, i) => (
+                          <option key={i} value={q.question}>{q.question}</option>
+                        ))}
+                      </Form.Select>
+                      <Form.Control
+                        type="text"
+                        className="mb-2"
+                        placeholder="Answer"
+                        value={answer}
+                        onChange={(e) => setAnswer(e.target.value)}
+                        disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
+                      />
+                      <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                        {isSubmittingAnswer ? (
                           <>
-                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Sending...
+                            <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
                           </>
                         ) : (
-                          "Send Reset Code to Email"
+                          "Submit Answer"
                         )}
-                      </Button>
-                      {config?.securityQuestions?.length > 0 && (
-                        <>
-                          <Form.Select
-                            className="mb-2"
-                            value={selectedQuestion}
-                            onChange={(e) => setSelectedQuestion(e.target.value)}
-                            disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
-                          >
-                            <option value="">Choose Security Question</option>
-                            {config.securityQuestions.map((q, i) => (
-                              <option key={i} value={q.question}>{q.question}</option>
-                            ))}
-                          </Form.Select>
-                          <Form.Control
-                            type="text"
-                            className="mb-2"
-                            placeholder="Answer"
-                            value={answer}
-                            onChange={(e) => setAnswer(e.target.value)}
-                            disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
-                          />
-                          <Button className="w-100 mb-2" onClick={verifyAnswer} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
-                            {isSubmittingAnswer ? (
-                              <>
-                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Submitting...
-                              </>
-                            ) : (
-                              "Submit Answer"
-                            )}
-                          </Button>
-                        </>
-                      )}
-                      <Button variant="secondary" onClick={() => setStep("enter")} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
-                        I remember my {authMethod}
                       </Button>
                     </>
                   )}
-                </>
-              )}
-
-              {step === "verify-code" && (
-                <>
-                  <Form.Control
-                    className="mb-2"
-                    placeholder="Reset Code"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
-                  />
-                  {authMethod === "pattern" ? (
-                    <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
-                      <p className="fw-semibold">Draw New Pattern</p>
-                      <PatternLock
-                        width={250}
-                        size={3}
-                        path={pattern}
-                        onChange={(pts) => setPattern(pts || [])}
-                        onFinish={() => {
-                          if (pattern.length < 3) {
-                            setError("New pattern must connect at least 3 dots.");
-                          } else {
-                            setError("");
-                          }
-                        }}
-                        disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
-                      />
-                    </div>
-                  ) : (
-                    <Form.Control
-                      className="mb-2"
-                      type={authMethod === "password" ? "password" : "text"}
-                      inputMode={authMethod === "pin" ? "numeric" : "text"}
-                      placeholder={`New ${authMethod}`}
-                      value={newValue}
-                      onChange={(e) => setNewValue(e.target.value)}
-                      disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
-                    />
-                  )}
-                  <Button className="w-100 mb-2" onClick={resetWithToken} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
-                    {isResettingMethod ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Resetting...
-                      </>
-                    ) : (
-                      "Reset"
-                    )}
-                  </Button>
                   <Button variant="secondary" onClick={() => setStep("enter")} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
                     I remember my {authMethod}
                   </Button>
                 </>
               )}
+            </>
+          )}
+
+          {step === "verify-code" && (
+            <>
+              <Form.Control
+                className="mb-2"
+                placeholder="Reset Code"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
+              />
+              {authMethod === "pattern" ? (
+                <div className="text-center mb-2" style={{ backgroundColor: '#343a40', color: '#ffffff' }}>
+                  <p className="fw-semibold">Draw New Pattern</p>
+                  <PatternLock
+                    width={250}
+                    size={3}
+                    path={pattern}
+                    onChange={(pts) => setPattern(pts || [])}
+                    onFinish={() => {
+                      if (pattern.length < 3) {
+                        setError("New pattern must connect at least 3 dots.");
+                      } else {
+                        setError("");
+                      }
+                    }}
+                    disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
+                  />
+                </div>
+              ) : (
+                <Form.Control
+                  className="mb-2"
+                  type={authMethod === "password" ? "password" : "text"}
+                  inputMode={authMethod === "pin" ? "numeric" : "text"}
+                  placeholder={`New ${authMethod}`}
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}
+                />
+              )}
+              <Button className="w-100 mb-2" onClick={resetWithToken} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                {isResettingMethod ? (
+                  <>
+                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Resetting...
+                  </>
+                ) : (
+                  "Reset"
+                )}
+              </Button>
+              <Button variant="secondary" onClick={() => setStep("enter")} disabled={isSendingEmail || isSubmittingAnswer || isResettingMethod}>
+                I remember my {authMethod}
+              </Button>
             </>
           )}
         </Modal.Body>
