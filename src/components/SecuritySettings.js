@@ -22,13 +22,7 @@ const FIXED_SECURITY_QUESTIONS = [
   "What is your favorite movie?",
 ];
 
-// Helper function to convert ArrayBuffer to Base64Url
-function arrayBufferToBase64url(buffer) {
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
+// Removed: Helper function to convert ArrayBuffer to Base64Url (no longer needed)
 
 const SecuritySettings = () => {
   const [user] = useAuthState(auth);
@@ -107,10 +101,7 @@ const SecuritySettings = () => {
         const updated = { userId: user.uid };
         updated[`${method}Enabled`] = false;
         
-        // When disabling biometric, also clear its credentials
-        if (method === "biometric") {
-          updated.biometricCredentials = [];
-        }
+        // Removed: Biometric specific disabling logic
 
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
@@ -126,89 +117,9 @@ const SecuritySettings = () => {
       return;
     }
 
-    // Logic for enabling a method
-    if (method === "biometric") {
-      try {
-        setIsSaving(true);
-        setError("");
-        setSuccessMessage("");
-
-        // Check for WebAuthn support
-        if (!window.PublicKeyCredential) {
-          throw new Error("WebAuthn (Biometric) is not supported in this browser or environment (requires HTTPS).");
-        }
-
-        // Generate a challenge from the server for registration
-        // In a real app, this would be a fetch to your backend to get a challenge
-        // For this example, we'll use a dummy challenge
-        const challenge = new Uint8Array(32);
-        window.crypto.getRandomValues(challenge);
-
-        const publicKeyCredentialCreationOptions = {
-          challenge: challenge,
-          rp: { name: "Wealth Management App", id: window.location.hostname },
-          user: {
-            id: new TextEncoder().encode(user.uid),
-            name: user.email || user.uid,
-            displayName: user.email || user.uid,
-          },
-          pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }], // ES256, RS256
-          authenticatorSelection: {
-            authenticatorAttachment: "platform", // Use platform authenticators (e.g., built-in fingerprint)
-            userVerification: "required", // Require biometric verification
-          },
-          timeout: 60000,
-          attestation: "none",
-        };
-
-        const credential = await navigator.credentials.create({
-          publicKey: publicKeyCredentialCreationOptions,
-        });
-
-        // Extract credential data and convert to Base64Url for storage
-        const credentialID = arrayBufferToBase64url(credential.rawId);
-        // Note: credential.response.getPublicKey() returns an ArrayBuffer.
-        // It needs to be converted to Base64Url for storage in your string schema field.
-        const publicKey = arrayBufferToBase64url(credential.response.getPublicKey().buffer);
-        const transports = credential.response.getTransports(); // Get transports if available
-
-        const newBiometricCredential = {
-          credentialID: credentialID,
-          publicKey: publicKey,
-          counter: 0, // Initial counter, should be managed by backend during assertion
-          transports: transports || [],
-        };
-
-        const updated = {
-          userId: user.uid,
-          biometricEnabled: true,
-          // IMPORTANT FIX: Include the new biometric credential in the array
-          biometricCredentials: [...(config?.biometricCredentials || []), newBiometricCredential],
-          pinEnabled: false,
-          passwordEnabled: false,
-          patternEnabled: false,
-        };
-        // Remove biometricHash as it's not used for WebAuthn
-        delete updated.biometricHash; 
-
-        const res = await axios.put(`${API}/${user.uid}`, updated);
-        setConfig(res.data);
-        setSuccessMessage("Biometric authentication enabled successfully!");
-      } catch (err) {
-        console.error("Failed to enable biometric authentication:", err);
-        if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-          setError("Biometric setup cancelled or denied by user.");
-        } else if (err.message.includes("supported")) {
-          setError(err.message);
-        } else {
-          setError("Failed to enable biometric authentication. Ensure your device has a biometric sensor configured and try again on HTTPS.");
-        }
-      } finally {
-        setIsSaving(false);
-      }
-      return;
-    }
-
+    // Logic for enabling a method (only for PIN, Password, Pattern now)
+    // Removed: Biometric enabling logic
+    
     // For PIN, Password, Pattern
     setMode(method);
     setActiveMethod(method);
@@ -254,11 +165,9 @@ const SecuritySettings = () => {
           patternEnabled: true,
           pinEnabled: false,
           passwordEnabled: false,
-          biometricEnabled: false, // Disable other methods
-          biometricCredentials: [], // Clear biometric credentials when another method is set
+          // Removed: biometricEnabled and biometricCredentials clearing
         };
-        // Remove biometricHash as it's not used for WebAuthn
-        delete updated.biometricHash; 
+        // Removed: delete updated.biometricHash; 
 
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
@@ -302,14 +211,10 @@ const SecuritySettings = () => {
         updated[`${method}Hash`] = hash;
         updated[`${method}Enabled`] = true;
 
-        const otherMethods = ["pin", "password", "pattern", "biometric"].filter(m => m !== method); // Include biometric
+        const otherMethods = ["pin", "password", "pattern"].filter(m => m !== method); // Removed "biometric"
         otherMethods.forEach(m => updated[`${m}Enabled`] = false);
-        // Clear biometric credentials if another method is chosen
-        if (method !== "biometric") {
-          updated.biometricCredentials = [];
-        }
-        // Remove biometricHash as it's not used for WebAuthn
-        delete updated.biometricHash; 
+        // Removed: Clear biometric credentials if another method is chosen
+        // Removed: delete updated.biometricHash; 
 
         const res = await axios.put(`${API}/${user.uid}`, updated);
         setConfig(res.data);
@@ -407,7 +312,7 @@ const SecuritySettings = () => {
       {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
       <Row className="g-3">
-        {["pin", "password", "pattern", "biometric"].map((method) => ( // Added "biometric"
+        {["pin", "password", "pattern"].map((method) => ( // Removed "biometric"
           <Col xs={12} md={4} key={method}>
             <Form.Check
               type="switch"
