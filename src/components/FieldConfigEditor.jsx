@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Eye, EyeOff } from 'lucide-react'; // or replace with emoji if needed
-import { toast } from 'react-toastify'; // ✅ Optional: if using react-toastify
+import { Eye, EyeOff } from 'lucide-react'; // optional, use emoji if preferred
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const BASE_URL = 'https://backend-pbmi.onrender.com';
 
-const FieldConfigEditor = ({ blockId, config, email }) => {
+const FieldConfigEditor = ({ blockId, config, email, readonly }) => {
   const [required, setRequired] = useState(config.required);
   const [visible, setVisible] = useState(config.visible);
 
@@ -34,30 +34,38 @@ const FieldConfigEditor = ({ blockId, config, email }) => {
       }, {
         headers: { 'admin-email': email },
       });
-      toast.success(`Saved "${config.fieldKey}" settings`, { autoClose: 1500 });
+      toast.success(`✅ Saved "${config.fieldKey}"`, { autoClose: 1500 });
     } catch (err) {
-      console.error('Save error:', err.message);
-      toast.error(`Failed to save "${config.fieldKey}"`, { autoClose: 2000 });
+      toast.error(`❌ Failed to save "${config.fieldKey}"`, { autoClose: 2000 });
     }
   };
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center',
+      display: 'flex',
+      alignItems: 'center',
       justifyContent: 'space-between',
-      borderBottom: '1px solid #ddd', padding: '5px 0'
+      borderBottom: '1px solid #ddd',
+      padding: '6px 0',
+      opacity: readonly ? 0.6 : 1,
+      pointerEvents: readonly ? 'none' : 'auto'
     }}>
       <div style={{ flex: 1 }}>{config.fieldKey}</div>
 
-      <label>
+      <label style={{ marginRight: 10 }}>
         <input
           type="checkbox"
           checked={required}
           onChange={toggleRequired}
-        /> Required
+          disabled={readonly}
+        />{' '}
+        Required
       </label>
 
-      <span style={{ cursor: 'pointer', paddingLeft: 10 }} onClick={toggleVisible}>
+      <span style={{
+        cursor: readonly ? 'not-allowed' : 'pointer',
+        paddingLeft: 10
+      }} onClick={!readonly ? toggleVisible : undefined}>
         {visible ? <Eye size={20} /> : <EyeOff size={20} />}
       </span>
     </div>
